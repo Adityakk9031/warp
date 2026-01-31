@@ -59,31 +59,43 @@ def get_node_name_safe(node):
 
 
 class WarpCodegenError(RuntimeError):
+    """General error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
 
 class WarpCodegenTypeError(TypeError):
+    """Type error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
 
 class WarpCodegenAttributeError(AttributeError):
+    """Attribute error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
 
 class WarpCodegenIndexError(IndexError):
+    """Index error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
 
 class WarpCodegenKeyError(KeyError):
+    """Key error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
 
 class WarpCodegenValueError(ValueError):
+    """Value error during Warp kernel code generation."""
+
     def __init__(self, message):
         super().__init__(message)
 
@@ -376,10 +388,22 @@ class StructInstance:
         return tuple(npvalue)
 
 
+def _is_texture_type(var_type: type) -> bool:
+    """Check if var_type is a Texture subclass (Texture2D, Texture3D, etc.)."""
+    from warp._src.texture import Texture  # noqa: PLC0415
+
+    try:
+        return issubclass(var_type, Texture)
+    except TypeError:
+        return False
+
+
 def _make_struct_field_constructor(field: str, var_type: type):
     if isinstance(var_type, Struct):
         return lambda ctype: var_type.instance_type(ctype=getattr(ctype, field))
     elif isinstance(var_type, warp._src.types.array):
+        return lambda ctype: None
+    elif _is_texture_type(var_type):
         return lambda ctype: None
     elif issubclass(var_type, ctypes.Array):
         # for vector/matrices, the Python attribute aliases the ctype one
@@ -442,10 +466,23 @@ def _make_struct_field_setter(cls, field: str, var_type: type):
 
         cls.__setattr__(inst, field, value)
 
+    def set_texture_value(inst, value):
+        # Texture2D, Texture3D, etc.
+        if value is None:
+            # create texture with null/default handle
+            setattr(inst._ctype, field, var_type._wp_ctype_())
+        else:
+            # texture instance
+            setattr(inst._ctype, field, value.__ctype__())
+
+        cls.__setattr__(inst, field, value)
+
     if isinstance(var_type, array):
         return set_array_value
     elif isinstance(var_type, Struct):
         return set_struct_value
+    elif _is_texture_type(var_type):
+        return set_texture_value
     elif issubclass(var_type, ctypes.Array):
         return set_vector_value
     else:
@@ -476,6 +513,8 @@ class Struct:
                 fields.append((label, var.type.ctype))
             elif issubclass(var.type, ctypes.Array):
                 fields.append((label, var.type))
+            elif _is_texture_type(var.type):
+                fields.append((label, var.type._wp_ctype_))
             else:
                 # HACK: fp16 requires conversion functions from warp.so
                 if var.type is warp.float16:
@@ -2802,8 +2841,28 @@ class Adjoint:
             caller = func
             func = None
 
+            # Handle module callers: check if attribute exists on the module
+            if isinstance(caller, types.ModuleType):
+                if hasattr(caller, attr):
+                    # Attribute exists on the module - use it
+                    func = getattr(caller, attr)
+                    if not isinstance(func, warp._src.context.Function):
+                        # It's not a Function, might be a type - let subsequent logic handle it
+                        caller = func
+                        func = None
+                elif caller is warp and attr in warp._src.context.builtin_functions:
+                    # Fallback: for the warp module, check builtin_functions
+                    # (builtins like tid() are not actual attributes of the warp module)
+                    func = warp._src.context.builtin_functions[attr]
+                else:
+                    # Attribute doesn't exist on this module
+                    raise WarpCodegenAttributeError(
+                        f"Could not find function {'.'.join(path)} as a built-in or user-defined function. "
+                        "Note that user functions must be annotated with a @wp.func decorator to be called from a kernel."
+                    )
+
             # try and lookup function name in builtins (e.g.: using `dot` directly without wp prefix)
-            if attr in warp._src.context.builtin_functions:
+            if func is None and attr in warp._src.context.builtin_functions:
                 func = warp._src.context.builtin_functions[attr]
 
             # vector class type e.g.: wp.vec3f constructor
@@ -3501,6 +3560,12 @@ class Adjoint:
             for i in range(1, len(path)):
                 if hasattr(expr, path[i]):
                     expr = getattr(expr, path[i])
+                elif i < len(path) - 1:
+                    # Intermediate attribute doesn't exist - path is invalid.
+                    # Only the last element is allowed to be missing (e.g., for builtin functions
+                    # like wp.tid() where 'tid' is not an attribute of the warp module but is
+                    # looked up in builtin_functions by emit_Call).
+                    return None
 
         return expr
 
@@ -3738,9 +3803,37 @@ class Adjoint:
     # expression can be evaluated
     def replace_static_expressions(adj):
         class StaticExpressionReplacer(ast.NodeTransformer):
+            def __init__(self):
+                # Track loop variable names from enclosing for loops. This prevents
+                # wp.static() from capturing a global variable that shadows a loop variable.
+                # Uses a counter (not a set) to handle nested loops that reuse the same variable name.
+                self.loop_vars = {}
+
+            def visit_For(self, node):
+                # Track loop variable while visiting loop body (simple names only;
+                # tuple unpacking like `for x, y in ...` is rare in Warp kernels)
+                var_name = node.target.id if isinstance(node.target, ast.Name) else None
+                if var_name:
+                    self.loop_vars[var_name] = self.loop_vars.get(var_name, 0) + 1
+                result = self.generic_visit(node)
+                if var_name:
+                    self.loop_vars[var_name] -= 1
+                    if self.loop_vars[var_name] == 0:
+                        del self.loop_vars[var_name]
+                return result
+
             def visit_Call(self, node):
                 func, _ = adj.resolve_static_expression(node.func, eval_types=False)
                 if adj.is_static_expression(func):
+                    # If the static expression references an enclosing loop variable,
+                    # defer evaluation to codegen time when the loop constant is available
+                    expr_node = node.args[0] if node.args else (node.keywords[0].value if node.keywords else None)
+                    if expr_node:
+                        referenced = {n.id for n in ast.walk(expr_node) if isinstance(n, ast.Name)}
+                        if referenced & self.loop_vars.keys():
+                            adj.has_unresolved_static_expressions = True
+                            return self.generic_visit(node)
+
                     try:
                         # the static expression will execute as long as the static expression is valid and
                         # only depends on global or captured variables
