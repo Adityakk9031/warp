@@ -22,18 +22,25 @@ Key decorators: `@wp.kernel` (parallel GPU/CPU code), `@wp.func` (reusable funct
 
 ## Python Execution
 
-- Use `uv run` for all Python execution (matches CI/CD): `uv run script.py` or `uv run -m module_name`
+- This project uses `uv` (matches CI/CD): `uv run script.py`, `uv run -m module_name`, or `uv run python -c "..."`
 - With extras: `uv run --extra dev -m warp.tests`
 - With additional packages: `uv run --with rich script.py`
-- Never run bare `python`/`python3`—always use `uv run` or activate `.venv` first.
+- Use `uv run python` (runs with project dependencies) or activate `.venv` first, not the system Python.
+- If `warp/bin/` is empty, build first with `build_lib.py` (or `--quick`, see Testing section for requirements).
 
 ## Testing
 
 IMPORTANT: Warp uses `unittest`, not pytest.
 
 - Rebuild native libraries (only needed after changes to `warp/native/` C++/CUDA code) with `build_lib.py`
+  - Standard build: `uv run build_lib.py` (~10-20 minutes)
+  - Quick build: `uv run build_lib.py --quick` for rapid iteration (~2-4 minutes)
+    - Compiles for minimal GPU architectures and disables CUDA forward compatibility
+    - IMPORTANT: Only use if your CUDA driver version ≥ CUDA Toolkit version being used for build
+    - Example: Toolkit 13.1 with Driver 13.0 will NOT work; Driver 13.1+ required
+    - Check versions: `nvidia-smi` (driver) and CUDA Toolkit being used (set via WARP_CUDA_PATH, CUDA_HOME, CUDA_PATH env vars, or `which nvcc` if unset)
 - Run all tests (~10-20 min): `uv run --extra dev -m warp.tests -s autodetect`
-- Run specific test file (preferred): `uv run warp/tests/test_modules_lite.py`
+- Run all tests in a specific file (preferred for targeted fixes): `uv run warp/tests/test_modules_lite.py`
 - New test modules should be added to `default_suite` in `warp/tests/unittest_suites.py`.
 - NEVER call `wp.clear_kernel_cache()` outside `if __name__ == "__main__":` blocks—parallel test runners will conflict.
 
@@ -77,3 +84,10 @@ Use imperative mood ("Fix X", not "Fixed X"), ~50 char subject, reference issues
 ## CI/CD and GitHub
 
 Dual pipelines exist for GitLab (`.gitlab-ci.yml`) and GitHub (`.github/workflows/`)—changes may need updating in both. Follow templates in `.github/` for issues and PRs.
+
+### GitHub Actions Security
+
+- IMPORTANT: Pin actions to commit hashes, not tags or semantic versions. Tags can be moved or compromised; commit hashes are immutable.
+  - Good: `uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86`
+  - Bad: `uses: astral-sh/setup-uv@v4` or `uses: astral-sh/setup-uv@v4.0.0`
+- Let uv infer the Python version from `.python-version` instead of specifying it explicitly in workflows. Use `uv python install` without arguments.
