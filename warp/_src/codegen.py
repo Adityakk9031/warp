@@ -3294,8 +3294,21 @@ class Adjoint:
 
             else:
                 attr = adj.emit_Attribute(lhs)
+                
+                # Check if we're assigning to a struct field in an array element
+                # This fixes issue #1174: gradients not propagating through array-of-structs
+                is_struct_array_field = (
+                    is_reference(aggregate.type) and
+                    isinstance(aggregate_type, warp._src.types.struct)
+                )
+                
                 if is_reference(attr.type):
                     adj.add_builtin_call("store", [attr, rhs])
+                    
+                    # Generate adjoint code to propagate gradients from struct field back to RHS
+                    # This was missing and caused gradients to not flow back through struct arrays
+                    if is_struct_array_field and adj.is_differentiable_value_type(strip_reference(rhs.type)):
+                        adj.add_reverse(f"{rhs.emit_adj()} += {attr.emit_adj()};")
                 else:
                     adj.add_builtin_call("assign", [attr, rhs])
 
