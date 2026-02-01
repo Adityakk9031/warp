@@ -62,11 +62,11 @@ def test_struct_array_gradient_propagation(_test, device):
 devices = get_test_devices()
 
 
-class TestGrad(unittest.TestCase):
+class TestGradStructArray(unittest.TestCase):
     pass
 
 
-add_function_test(TestGrad, "test_struct_array_gradient_propagation", test_struct_array_gradient_propagation, devices=devices)
+add_function_test(TestGradStructArray, "test_struct_array_gradient_propagation", test_struct_array_gradient_propagation, devices=devices)
 
 
 if __name__ == "__main__":
