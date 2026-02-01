@@ -3299,7 +3299,7 @@ class Adjoint:
                 # This fixes issue #1174: gradients not propagating through array-of-structs
                 is_struct_array_field = (
                     is_reference(aggregate.type) and
-                    isinstance(aggregate_type, warp._src.types.struct)
+                    type_is_struct(aggregate_type)
                 )
                 
                 if is_reference(attr.type):
@@ -3312,7 +3312,9 @@ class Adjoint:
                 else:
                     adj.add_builtin_call("assign", [attr, rhs])
 
-                if warp.config.verbose and not adj.custom_reverse_mode:
+                # Only warn about non-differentiable operations if this is NOT a struct array field
+                # since struct array field assignments are now differentiable (issue #1174)
+                if warp.config.verbose and not adj.custom_reverse_mode and not is_struct_array_field:
                     lineno = adj.lineno + adj.fun_lineno
                     line = adj.source_lines[adj.lineno]
                     msg = f'Warning: detected mutated struct {attr.label} during function "{adj.fun_name}" at {adj.filename}:{lineno}: this is a non-differentiable operation.\n{line}\n'
