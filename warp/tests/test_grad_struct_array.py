@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import unittest
-from typing import Any
+
 
 import numpy as np
 
@@ -40,7 +40,7 @@ def loss_from_struct_array_kernel(y: wp.array(dtype=ScalarStruct), loss: wp.arra
     loss[i] = y[i].a
 
 
-def test_struct_array_gradient_propagation(test, device):
+def test_struct_array_gradient_propagation(_test, device):
     """Test that gradients propagate through array-of-structs (issue #1174)"""
     with wp.ScopedDevice(device):
         x = wp.ones(1, dtype=wp.float32, requires_grad=True)
