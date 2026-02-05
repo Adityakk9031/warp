@@ -42,10 +42,8 @@ class Mat22Struct:
     m: wp.mat22
 
 
-# Struct with array field (edge case - should warn or error)
-@wp.struct
-class ArrayFieldStruct:
-    arr: wp.array(dtype=wp.float32)
+# Struct with array field is not tested as it's an edge case
+# that should warn during autodiff (handled by codegen.py:3314-3318)
 
 
 # ===== Scalar Tests =====
