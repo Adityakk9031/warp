@@ -3302,12 +3302,25 @@ class Adjoint:
                     type_is_struct(aggregate_type)
                 )
                 
+                # Check if the assigned field is an array type (unsupported for autodiff)
+                attr_type_stripped = strip_reference(attr.type)
+                is_array_field = is_array(attr_type_stripped)
+                
                 if is_reference(attr.type):
                     adj.add_builtin_call("store", [attr, rhs])
                     
+                    # Warn if trying to assign to an array field within a struct during autodiff
+                    # This is currently unsupported and won't have correct gradient propagation
+                    if is_struct_array_field and is_array_field and adj.used_by_backward_kernel:
+                        lineno = adj.lineno + adj.fun_lineno
+                        line = adj.source_lines[adj.lineno]
+                        msg = f'Warning: assignment to array field "{lhs.attr}" within struct during autodiff at {adj.filename}:{lineno} is not supported and will not propagate gradients correctly.\\n{line}\\n'
+                        print(msg)
+                    
                     # Generate adjoint code to propagate gradients from struct field back to RHS
                     # This was missing and caused gradients to not flow back through struct arrays
-                    if is_struct_array_field and adj.is_differentiable_value_type(strip_reference(rhs.type)):
+                    # Only applies to non-array fields (scalars, vectors, matrices, etc.)
+                    if is_struct_array_field and not is_array_field and adj.is_differentiable_value_type(strip_reference(rhs.type)):
                         adj.add_reverse(f"{rhs.emit_adj()} += {attr.emit_adj()};")
                 else:
                     adj.add_builtin_call("assign", [attr, rhs])
@@ -3317,7 +3330,7 @@ class Adjoint:
                 if warp.config.verbose and not adj.custom_reverse_mode and not is_struct_array_field:
                     lineno = adj.lineno + adj.fun_lineno
                     line = adj.source_lines[adj.lineno]
-                    msg = f'Warning: detected mutated struct {attr.label} during function "{adj.fun_name}" at {adj.filename}:{lineno}: this is a non-differentiable operation.\n{line}\n'
+                    msg = f'Warning: detected mutated struct {attr.label} during function "{adj.fun_name}" at {adj.filename}:{lineno}: this is a non-differentiable operation.\\n{line}\\n'
                     print(msg)
 
         else:
