@@ -7625,11 +7625,14 @@ add_builtin(
     group="Textures",
     doc="""Sample the 2D texture at the given UV coordinates.
 
-    :param tex: The 2D texture to sample.
-    :param uv: UV coordinates as a vec2f. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] x [0, height] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 2D texture to sample.
+        uv: UV coordinates as a :class:`warp.vec2f`. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] x [0, height] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.""",
     is_differentiable=False,
@@ -7646,13 +7649,16 @@ add_builtin(
     group="Textures",
     doc="""Sample the 2D texture at the given UV coordinates.
 
-    :param tex: The 2D texture to sample.
-    :param u: U coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
-    :param v: V coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 2D texture to sample.
+        u: U coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
+        v: V coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.""",
     is_differentiable=False,
@@ -7688,11 +7694,14 @@ add_builtin(
     group="Textures",
     doc="""Sample the 3D texture at the given UVW coordinates.
 
-    :param tex: The 3D texture to sample.
-    :param uvw: UVW coordinates as a vec3f. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] x [0, height] x [0, depth] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 3D texture to sample.
+        uvw: UVW coordinates as a :class:`warp.vec3f`. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] x [0, height] x [0, depth] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.""",
     is_differentiable=False,
@@ -7709,15 +7718,18 @@ add_builtin(
     group="Textures",
     doc="""Sample the 3D texture at the given UVW coordinates.
 
-    :param tex: The 3D texture to sample.
-    :param u: U coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
-    :param v: V coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
-    :param w: W coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, depth] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 3D texture to sample.
+        u: U coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
+        v: V coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
+        w: W coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, depth] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.""",
     is_differentiable=False,
@@ -9425,7 +9437,7 @@ def matrix_ij_dispatch_func(input_types: Mapping[str, type], return_type: Any, a
 # implements &vector[index]
 add_builtin(
     "index",
-    input_types={"a": vector(length=Any, dtype=Scalar), "i": int},
+    input_types={"a": vector(length=Any, dtype=Scalar), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9436,7 +9448,7 @@ add_builtin(
 # implements &bool_vector[index] (bool is not part of Scalar)
 add_builtin(
     "index",
-    input_types={"a": vector(length=Any, dtype=bool), "i": int},
+    input_types={"a": vector(length=Any, dtype=bool), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9447,7 +9459,7 @@ add_builtin(
 # implements &quaternion[index]
 add_builtin(
     "index",
-    input_types={"a": quaternion(dtype=Float), "i": int},
+    input_types={"a": quaternion(dtype=Float), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9458,7 +9470,7 @@ add_builtin(
 # implements &transformation[index]
 add_builtin(
     "index",
-    input_types={"a": transformation(dtype=Float), "i": int},
+    input_types={"a": transformation(dtype=Float), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9469,7 +9481,7 @@ add_builtin(
 # implements &(*vector)[index]
 add_builtin(
     "indexref",
-    input_types={"a": vector(length=Any, dtype=Scalar), "i": int},
+    input_types={"a": vector(length=Any, dtype=Scalar), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9480,7 +9492,7 @@ add_builtin(
 # implements &(*bool_vector)[index] (bool is not part of Scalar)
 add_builtin(
     "indexref",
-    input_types={"a": vector(length=Any, dtype=bool), "i": int},
+    input_types={"a": vector(length=Any, dtype=bool), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9491,7 +9503,7 @@ add_builtin(
 # implements &(*matrix)[i, j]
 add_builtin(
     "indexref",
-    input_types={"a": matrix(shape=(Any, Any), dtype=Scalar), "i": int, "j": int},
+    input_types={"a": matrix(shape=(Any, Any), dtype=Scalar), "i": Int, "j": Int},
     value_func=matrix_ij_value_func,
     dispatch_func=matrix_ij_dispatch_func,
     hidden=True,
@@ -9502,7 +9514,7 @@ add_builtin(
 # implements &(*bool_matrix)[i, j] (bool is not part of Scalar)
 add_builtin(
     "indexref",
-    input_types={"a": matrix(shape=(Any, Any), dtype=bool), "i": int, "j": int},
+    input_types={"a": matrix(shape=(Any, Any), dtype=bool), "i": Int, "j": Int},
     value_func=matrix_ij_value_func,
     dispatch_func=matrix_ij_dispatch_func,
     hidden=True,
@@ -9513,7 +9525,7 @@ add_builtin(
 # implements &(*quaternion)[index]
 add_builtin(
     "indexref",
-    input_types={"a": quaternion(dtype=Float), "i": int},
+    input_types={"a": quaternion(dtype=Float), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -9524,7 +9536,7 @@ add_builtin(
 # implements &(*transformation)[index]
 add_builtin(
     "indexref",
-    input_types={"a": transformation(dtype=Float), "i": int},
+    input_types={"a": transformation(dtype=Float), "i": Int},
     value_func=vector_index_value_func,
     dispatch_func=vector_index_dispatch_func,
     hidden=True,
@@ -11659,6 +11671,15 @@ def tile_fft_generic_lto_dispatch_func(
         # CPU/no-MathDx dispatch
         return ([], [], [], 0)
     else:
+        # Validate elements per thread (ept) - cuFFTDx requires ept >= 2
+        if ept < 2:
+            func_name = "tile_fft" if direction == "forward" else "tile_ifft"
+            raise ValueError(
+                f"{func_name}() requires at least 2 elements per thread, but got ept={ept} "
+                f"(fft_size={size}, block_dim={num_threads}). "
+                f"Reduce block_dim to at most {size // 2} for this FFT size."
+            )
+
         # generate the forward LTO
         lto_symbol_fwd, lto_code_data_fwd, shared_memory_bytes = warp._src.build.build_lto_fft(
             arch, size, ept, direction, fwd_dir, precision, builder

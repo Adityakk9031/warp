@@ -156,6 +156,8 @@ from warp._src.context import is_cuda_available as is_cuda_available
 from warp._src.build import clear_kernel_cache as clear_kernel_cache
 from warp._src.build import clear_lto_cache as clear_lto_cache
 
+from warp._src.context import print_diagnostics as print_diagnostics
+
 from warp._src.codegen import WarpCodegenAttributeError as WarpCodegenAttributeError
 from warp._src.codegen import WarpCodegenError as WarpCodegenError
 from warp._src.codegen import WarpCodegenIndexError as WarpCodegenIndexError
@@ -4675,11 +4677,14 @@ def volume_world_to_index_dir(id: uint64, xyz: vec3f) -> vec3f:
 def texture_sample(tex: Texture2D, uv: vec2f, dtype: Any) -> Any:
     """Sample the 2D texture at the given UV coordinates.
 
-    :param tex: The 2D texture to sample.
-    :param uv: UV coordinates as a vec2f. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] x [0, height] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 2D texture to sample.
+        uv: UV coordinates as a :class:`warp.vec2f`. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] x [0, height] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.
     """
@@ -4689,13 +4694,16 @@ def texture_sample(tex: Texture2D, uv: vec2f, dtype: Any) -> Any:
 def texture_sample(tex: Texture2D, u: float32, v: float32, dtype: Any) -> Any:
     """Sample the 2D texture at the given UV coordinates.
 
-    :param tex: The 2D texture to sample.
-    :param u: U coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
-    :param v: V coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 2D texture to sample.
+        u: U coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
+        v: V coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.
     """
@@ -4705,11 +4713,14 @@ def texture_sample(tex: Texture2D, u: float32, v: float32, dtype: Any) -> Any:
 def texture_sample(tex: Texture3D, uvw: vec3f, dtype: Any) -> Any:
     """Sample the 3D texture at the given UVW coordinates.
 
-    :param tex: The 3D texture to sample.
-    :param uvw: UVW coordinates as a vec3f. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] x [0, height] x [0, depth] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 3D texture to sample.
+        uvw: UVW coordinates as a :class:`warp.vec3f`. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] x [0, height] x [0, depth] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.
     """
@@ -4719,15 +4730,18 @@ def texture_sample(tex: Texture3D, uvw: vec3f, dtype: Any) -> Any:
 def texture_sample(tex: Texture3D, u: float32, v: float32, w: float32, dtype: Any) -> Any:
     """Sample the 3D texture at the given UVW coordinates.
 
-    :param tex: The 3D texture to sample.
-    :param u: U coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
-    :param v: V coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
-    :param w: W coordinate. Range is [0, 1] if the texture was created with
-        ``normalized_coords=True`` (default), or [0, depth] if ``normalized_coords=False``.
-    :param dtype: The return type (float, vec2f, or vec4f).
-    :returns: The sampled value of the specified dtype.
+    Args:
+        tex: The 3D texture to sample.
+        u: U coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, width] if ``normalized_coords=False``.
+        v: V coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, height] if ``normalized_coords=False``.
+        w: W coordinate. Range is [0, 1] if the texture was created with
+            ``normalized_coords=True`` (default), or [0, depth] if ``normalized_coords=False``.
+        dtype: The return type (``float``, :class:`warp.vec2f`, or :class:`warp.vec4f`).
+
+    Returns:
+        The sampled value of the specified ``dtype``.
 
     Filtering mode is :attr:`warp.TextureFilterMode.CLOSEST` or :attr:`warp.TextureFilterMode.LINEAR`.
     """

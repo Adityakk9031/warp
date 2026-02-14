@@ -42,7 +42,20 @@ IMPORTANT: Warp uses `unittest`, not pytest.
 - Run all tests (~10-20 min): `uv run --extra dev -m warp.tests -s autodetect`
 - Run all tests in a specific file (preferred for targeted fixes): `uv run warp/tests/test_modules_lite.py`
 - New test modules should be added to `default_suite` in `warp/tests/unittest_suites.py`.
-- NEVER call `wp.clear_kernel_cache()` outside `if __name__ == "__main__":` blocks—parallel test runners will conflict.
+- Use standard `unittest.TestCase` methods when tests target a fixed device (e.g., CPU-only). Use `add_function_test()` only when tests need to run across multiple devices via `get_test_devices()`.
+- Avoid timing-based assertions (e.g., asserting speedup ratios) in tests—they are flaky in parallel CI environments with variable CPU load.
+- Test file and class naming: group by feature prefix (e.g., `test_module_parallel_load.py` / `TestModuleParallelLoad` alongside `test_module_hashing.py` / `TestModuleHashing`).
+- NEVER call `wp.clear_kernel_cache()` or `wp.clear_lto_cache()` in test files—not in `__main__` blocks, test methods, or module scope. Cache clearing is not multi-process-safe; concurrent clears cause LLVM crashes ("IO failure on output stream: Bad file descriptor"). The test suite runner (`unittest_parallel.py`) and `build_lib.py` already clear the cache from a single process at the right times.
+- Use `np.testing.assert_allclose()` instead of `np.allclose()` for array comparisons—it provides detailed error messages on failure.
+
+### Synchronization Patterns
+
+- Use `wp.synchronize_device()` inside `wp.ScopedDevice()` contexts, not `wp.synchronize()`. The latter synchronizes *all* devices, which is rarely what you want.
+- Don't call `wp.synchronize()` or `wp.synchronize_device()` before `.numpy()`—`.numpy()` implicitly synchronizes.
+
+### Kernel Definition
+
+- NEVER define `@wp.kernel` functions in code passed to `python -c "..."`. Warp's codegen uses `inspect.getsourcelines()` to read kernel source, which fails for code not in a file. Write kernels to proper `.py` files instead.
 
 ## Code Style
 
@@ -57,8 +70,12 @@ Follow Google-style docstrings with these Warp-specific guidelines:
 - Document `__init__` parameters in the class docstring, not the `__init__` method
 - Don't repeat default values from signatures—Sphinx autodoc shows them automatically
 - Use double backticks for code elements (RST syntax): ``` ``.nvdb`` ```, ``` ``"none"`` ```
+- Use double backticks for parameter cross-references in docstrings: ``` ``data`` ```, ``` ``device`` ```—not italics (`*data*`)
+- Use attribute docstrings (`"""..."""` after members) for enum/class constant docs, not `#:` comments—Sphinx supports both but only attribute docstrings work in VSCode/Pylance
 - Use Sphinx roles for cross-references: `:class:`warp.array``, `:func:`warp.launch``, `:mod:`warp.render``
+- Use `:attr:` to cross-reference class constants: `:attr:`FILTER_LINEAR``
 - In `builtins.py`, use `Args:` and `Returns:` (Google style), not `:param:` and `:returns:` (RST style)
+- Capitalize product names in docstrings and error messages: "NumPy" not "numpy", "Warp" not "warp"
 
 ## CHANGELOG.md
 
@@ -68,7 +85,9 @@ Follow Google-style docstrings with these Warp-specific guidelines:
 
 ## Commit Messages
 
-Use imperative mood ("Fix X", not "Fixed X"), ~50 char subject, reference issues as `(GH-XXX)`. Body explains *why*, not what.
+- IMPORTANT: Create a feature branch before committing—never commit directly to `main`. Use a descriptive branch name like `username/short-description`.
+- Use imperative mood ("Fix X", not "Fixed X"), ~50 char subject, reference issues as `(GH-XXX)`. Body explains *why*, not what.
+- ALWAYS use `git commit --signoff` (or `-s`) to add a `Signed-off-by` line (DCO).
 
 ## Documentation
 
@@ -78,6 +97,9 @@ Use imperative mood ("Fix X", not "Fixed X"), ~50 char subject, reference issues
 ## Codebase Internals
 
 - `warp/_src/` contains internal implementation, re-exported through `warp/__init__.py`. Public-facing code should import from `warp`, not `warp._src`. Internal code should import directly from `warp/_src/` modules.
+- `warp._src.utils` imports `warp._src.context` at module level—importing from `utils` in early-loaded modules (e.g., `texture.py`) causes circular imports. Use lazy imports (`from warp._src.utils import ... # noqa: PLC0415` inside functions) when needed.
+- Use `warp._src.utils.warn()` instead of `warnings.warn()`—it routes warnings to stdout (some applications don't want Warp writing to stderr).
+- Use `DeviceLike` type annotation (from `warp._src.context`) for `device` parameters. Import under `TYPE_CHECKING` to avoid circular imports.
 - Native bindings use ctypes; function signatures are registered in `Runtime.__init__` in `warp/_src/context.py`.
 - `warp/_src/builtins.py` defines kernel-callable functions. After modifying, run `build_docs.py` to regenerate `warp/__init__.pyi`.
 

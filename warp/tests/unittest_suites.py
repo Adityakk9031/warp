@@ -142,6 +142,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
     from warp.tests.test_ctypes import TestCTypes
     from warp.tests.test_dense import TestDense
     from warp.tests.test_devices import TestDevices
+    from warp.tests.test_diagnostics import TestDiagnostics
     from warp.tests.test_examples import (
         TestCoreExamples,
         TestFemDiffusionExamples,
@@ -169,6 +170,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
     from warp.tests.test_lvalue import TestLValue
     from warp.tests.test_math import TestMath
     from warp.tests.test_module_hashing import TestModuleHashing
+    from warp.tests.test_module_parallel_load import TestModuleParallelLoad
     from warp.tests.test_modules_lite import TestModuleLite
     from warp.tests.test_noise import TestNoise
     from warp.tests.test_operators import TestOperators
@@ -234,6 +236,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
         TestCTypes,
         TestDense,
         TestDevices,
+        TestDiagnostics,
         TestDLPack,
         TestCoreExamples,
         TestFemDiffusionExamples,
@@ -278,6 +281,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
         TestMeshQueryRay,
         TestModuleHashing,
         TestModuleLite,
+        TestModuleParallelLoad,
         TestMultiGPU,
         TestNoise,
         TestOperators,
