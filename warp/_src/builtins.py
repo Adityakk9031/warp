@@ -843,6 +843,45 @@ add_builtin(
     require_original_output_arg=True,
 )
 
+add_builtin(
+    "inverse_approx",
+    input_types={"a": matrix(shape=(2, 2), dtype=Float)},
+    value_func=inverse_value_func,
+    native_func="approx_inverse",
+    group="Vector Math",
+    doc="""Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.""",
+    require_original_output_arg=True,
+    export=False,
+)
+
+add_builtin(
+    "inverse_approx",
+    input_types={"a": matrix(shape=(3, 3), dtype=Float)},
+    value_func=inverse_value_func,
+    native_func="approx_inverse",
+    group="Vector Math",
+    doc="""Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.""",
+    require_original_output_arg=True,
+    export=False,
+)
+
+add_builtin(
+    "inverse_approx",
+    input_types={"a": matrix(shape=(4, 4), dtype=Float)},
+    value_func=inverse_value_func,
+    native_func="approx_inverse",
+    group="Vector Math",
+    doc="""Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.""",
+    require_original_output_arg=True,
+    export=False,
+)
+
 
 def determinant_value_func(arg_types: Mapping[str, type], arg_values: Mapping[str, Any]):
     if arg_types is None:
@@ -2473,6 +2512,116 @@ add_builtin(
 )
 
 
+def tile_from_thread_value_func(arg_types: Mapping[str, type], arg_values: Mapping[str, Any]):
+    # return generic type (for doc builds)
+    if arg_types is None:
+        return tile(dtype=Any, shape=tuple[int, ...])
+
+    shape = extract_tuple(arg_values["shape"], as_constant=True)
+
+    if None in shape:
+        raise ValueError("Tile functions require shape to be a compile time constant.")
+
+    if "value" not in arg_values:
+        raise TypeError("tile_from_thread() missing required keyword argument 'value'")
+
+    if "thread_idx" not in arg_values:
+        raise TypeError("tile_from_thread() missing required keyword argument 'thread_idx'")
+
+    if arg_values["storage"] not in {"shared", "register"}:
+        raise ValueError(f"Invalid value for 'storage': {arg_values['storage']!r}. Expected 'shared' or 'register'.")
+
+    return tile(dtype=arg_types["value"], shape=shape, storage=arg_values["storage"])
+
+
+def tile_from_thread_dispatch_func(arg_types: Mapping[str, type], return_type: Any, arg_values: Mapping[str, Var]):
+    shape = extract_tuple(arg_values["shape"], as_constant=True)
+
+    func_args = [arg_values["value"], arg_values["thread_idx"]]
+    template_args = [return_type.dtype, *shape]
+
+    return (func_args, template_args)
+
+
+add_builtin(
+    "tile_from_thread",
+    input_types={"shape": tuple[int, ...], "value": Any, "thread_idx": int, "storage": str},
+    defaults={"storage": "register"},
+    value_func=tile_from_thread_value_func,
+    dispatch_func=tile_from_thread_dispatch_func,
+    is_differentiable=False,
+    doc="""Allocate a tile filled with a value from a specific thread.
+
+    This function broadcasts a value from one thread to all threads in the block,
+    then creates a tile filled with that broadcast value. This is useful for
+    efficiently sharing a computed result (e.g., from an atomic operation) with
+    all threads in a block using minimal shared memory (only 1 element).
+
+    Args:
+        shape: Shape of the output tile
+        value: Per-thread value (only the value from ``thread_idx`` is used)
+        thread_idx: Index of the thread whose value should fill the tile
+        storage: The storage location for the tile: ``"register"`` for registers
+            (default) or ``"shared"`` for shared memory.
+
+    Returns:
+        A tile filled with the value from the specified thread.
+
+    Example:
+
+        .. code-block:: python
+
+            import warp as wp
+
+            TILE_SIZE = 8
+
+            @wp.kernel
+            def compute(output: wp.array(dtype=int)):
+                i, j = wp.tid()
+
+                # Compute offset on the last thread
+                offset = 0
+                if j == wp.block_dim() - 1:
+                    offset = i * wp.block_dim()
+
+                # Broadcast the last thread's offset to all threads (uses only 1 element of shared memory)
+                offset_tile = wp.tile_from_thread(shape=TILE_SIZE, value=offset, thread_idx=wp.block_dim() - 1)
+
+                # Combine with other tiles using tile operations
+                indices = wp.tile_arange(0, TILE_SIZE, dtype=int)
+                result = offset_tile + indices
+
+                wp.tile_store(output, result, offset=(i * TILE_SIZE,))
+
+            output = wp.zeros(16, dtype=int)
+            wp.launch_tiled(compute, dim=[2], inputs=[output], block_dim=TILE_SIZE)
+
+            print(output.numpy())
+
+        .. code-block:: text
+
+            [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
+
+    """,
+    group="Tile Primitives",
+    export=False,
+)
+
+
+# overload for scalar shape
+add_builtin(
+    "tile_from_thread",
+    input_types={"shape": int, "value": Any, "thread_idx": int, "storage": str},
+    defaults={"storage": "register"},
+    value_func=tile_from_thread_value_func,
+    dispatch_func=tile_from_thread_dispatch_func,
+    is_differentiable=False,
+    doc="""Allocate a tile filled with a value from a specific thread.""",
+    group="Tile Primitives",
+    export=False,
+)
+
+
 def tile_randi_value_func(arg_types: Mapping[str, type], arg_values: Mapping[str, Any]):
     # return generic type (for doc builds)
     if arg_types is None:
@@ -3941,8 +4090,21 @@ def tile_assign_value_func(arg_types, arg_values):
     if arg_types is None:
         return None
 
+    dst_type = arg_types["dst"]
+    src_type = arg_types.get("src")
+
+    # When both operands are tiles (tile_assign), enforce rank compatibility.
+    # For scalar/element-wise assign overloads where src is non-tile, skip this
+    # check and just force dst to shared as before.
+    if src_type is not None and is_tile(src_type):
+        if len(dst_type.shape) != len(src_type.shape):
+            raise ValueError(
+                f"tile_assign() destination and source tiles must have the same rank, "
+                f"got {len(dst_type.shape)} and {len(src_type.shape)}"
+            )
+
     # force the destination tile to shared memory
-    arg_types["dst"].storage = "shared"
+    dst_type.storage = "shared"
     return None
 
 
@@ -7000,29 +7162,40 @@ add_builtin(
     export=False,
 )
 
-add_builtin(
-    "hash_grid_query",
-    input_types={"id": uint64, "point": vec3, "max_dist": float},
-    value_type=HashGridQuery,
-    group="Geometry",
-    doc="""Construct a point query against a :class:`warp.HashGrid`.
 
-    This query can be used to iterate over all neighboring point within a fixed radius from the query point.""",
-    export=False,
-    is_differentiable=False,
-)
+# Hash grid query builtins for all precisions (float16, float32, float64)
+def _add_hash_grid_query_builtins(vec_type, scalar_type, query_type, precision_doc=""):
+    """Register hash_grid_query and hash_grid_query_next builtins for a given precision."""
+    doc_suffix = f" ({precision_doc} precision)" if precision_doc else ""
 
-add_builtin(
-    "hash_grid_query_next",
-    input_types={"query": HashGridQuery, "index": int},
-    value_type=builtins.bool,
-    group="Geometry",
-    doc="""Move to the next point in the hash grid query.
+    add_builtin(
+        "hash_grid_query",
+        input_types={"id": uint64, "point": vec_type, "max_dist": scalar_type},
+        value_type=query_type,
+        group="Geometry",
+        doc=f"""Construct a point query against a :class:`warp.HashGrid`{doc_suffix}.
+
+    This query can be used to iterate over all neighboring points within a fixed radius from the query point.""",
+        export=False,
+        is_differentiable=False,
+    )
+
+    add_builtin(
+        "hash_grid_query_next",
+        input_types={"query": query_type, "index": int},
+        value_type=builtins.bool,
+        group="Geometry",
+        doc=f"""Move to the next point in the hash grid query{doc_suffix}.
 
     The index of the current neighbor is stored in ``index``, returns ``False`` if there are no more neighbors.""",
-    export=False,
-    is_differentiable=False,
-)
+        export=False,
+        is_differentiable=False,
+    )
+
+
+_add_hash_grid_query_builtins(vec3, float, HashGridQuery)
+_add_hash_grid_query_builtins(vec3h, float16, HashGridQueryH, "float16")
+_add_hash_grid_query_builtins(vec3d, float64, HashGridQueryD, "float64")
 
 add_builtin(
     "hash_grid_point_id",
@@ -7170,15 +7343,16 @@ add_builtin(
     hidden=True,
     is_differentiable=False,
 )
-add_builtin(
-    "iter_next",
-    input_types={"query": HashGridQuery},
-    value_type=int,
-    group="Utility",
-    export=False,
-    hidden=True,
-    is_differentiable=False,
-)
+for query_type in (HashGridQuery, HashGridQueryH, HashGridQueryD):
+    add_builtin(
+        "iter_next",
+        input_types={"query": query_type},
+        value_type=int,
+        group="Utility",
+        export=False,
+        hidden=True,
+        is_differentiable=False,
+    )
 add_builtin(
     "iter_next",
     input_types={"query": MeshQueryAABB},
@@ -7625,6 +7799,10 @@ add_builtin(
     group="Textures",
     doc="""Sample the 2D texture at the given UV coordinates.
 
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
+
     Args:
         tex: The 2D texture to sample.
         uv: UV coordinates as a :class:`warp.vec2f`. Range is [0, 1] if the texture was created with
@@ -7648,6 +7826,10 @@ add_builtin(
     export=False,
     group="Textures",
     doc="""Sample the 2D texture at the given UV coordinates.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
 
     Args:
         tex: The 2D texture to sample.
@@ -7694,6 +7876,10 @@ add_builtin(
     group="Textures",
     doc="""Sample the 3D texture at the given UVW coordinates.
 
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
+
     Args:
         tex: The 3D texture to sample.
         uvw: UVW coordinates as a :class:`warp.vec3f`. Range is [0, 1] if the texture was created with
@@ -7717,6 +7903,10 @@ add_builtin(
     export=False,
     group="Textures",
     doc="""Sample the 3D texture at the given UVW coordinates.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
 
     Args:
         tex: The 3D texture to sample.
@@ -8512,7 +8702,11 @@ def view_value_func(arg_types: Mapping[str, type], arg_values: Mapping[str, Any]
         assert ndim > 0
 
     dtype = arr_type.dtype
-    if isinstance(arr_type, (fabricarray, indexedfabricarray, fixedarray)):
+    if (
+        matches_array_class(arr_type, fabricarray)
+        or matches_array_class(arr_type, indexedfabricarray)
+        or isinstance(arr_type, fixedarray)
+    ):
         # fabric and fixed arrays: return array attribute as a regular array
         return array(dtype=dtype, ndim=ndim)
 
@@ -10925,6 +11119,89 @@ add_builtin(
 )
 
 add_builtin(
+    "div_approx",
+    input_types={"a": Float, "b": Float},
+    value_func=sametypes_create_value_func(Float),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Falls back to exact division on CPU.""",
+    group="Operators",
+    require_original_output_arg=True,
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": vector(length=Any, dtype=Float), "b": Float},
+    value_func=scalar_mul_create_value_func(vector(length=Any, dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a vector by a scalar. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": Float, "b": vector(length=Any, dtype=Float)},
+    value_func=scalar_mul_create_value_func(vector(length=Any, dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by each element of a vector. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": matrix(shape=(Any, Any), dtype=Float), "b": Float},
+    value_func=scalar_mul_create_value_func(matrix(shape=(Any, Any), dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a matrix by a scalar. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": Float, "b": matrix(shape=(Any, Any), dtype=Float)},
+    value_func=scalar_mul_create_value_func(matrix(shape=(Any, Any), dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by each element of a matrix. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": quaternion(dtype=Float), "b": Float},
+    value_func=scalar_mul_create_value_func(quaternion(dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a quaternion by a scalar.
+
+    The result is unnormalized. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+add_builtin(
+    "div_approx",
+    input_types={"a": Float, "b": quaternion(dtype=Float)},
+    value_func=scalar_mul_create_value_func(quaternion(dtype=Float)),
+    native_func="approx_div",
+    doc="""Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by a quaternion.
+
+    The result is unnormalized. Falls back to exact division on CPU.""",
+    group="Operators",
+    export=False,
+)
+
+add_builtin(
     "floordiv",
     input_types={"a": Scalar, "b": Scalar},
     value_func=sametypes_create_value_func(Scalar),
@@ -11039,53 +11316,165 @@ def tile_unary_value_func(arg_types, arg_values):
 
 
 def tile_mul_value_func(arg_types, arg_values):
-    """Value function for tile * constant multiplication.
+    """Value function for tile multiplication.
 
-    Handles two cases:
-    1. tile * constant: multiply each element by a scalar, vector, or matrix
-    2. constant * tile: multiply each element by a scalar, vector, or matrix
+    Handles:
+    1. tile * tile: element-wise multiplication (shapes must match)
+    2. tile * constant: multiply each element by scalar/vec/mat
+    3. constant * tile: multiply each element by scalar/vec/mat
 
-    If the tile's element type is not scalar, the constant must be a scalar type
-    and vice versa (e.g., tile<float> * vec3f is valid, tile<vec3f> * float is
-    valid, but tile<vec3f> * vec3f is not). Underlying scalar types must match.
-    Result dtype follows standard scalar multiplication rules.
+    At least one operand must be a scalar type (can't multiply vec by vec).
+    Underlying scalar types must match.
     """
     if arg_types is None:
         return tile(dtype=Any, shape=tuple[int, ...])
 
-    x = arg_types["x"]
-    y = arg_types["y"]
+    a = arg_types["a"]
+    b = arg_types["b"]
 
-    x_is_tile = is_tile(x)
-    y_is_tile = is_tile(y)
+    a_is_tile = is_tile(a)
+    b_is_tile = is_tile(b)
 
-    # Exactly one operand must be a tile
-    if x_is_tile and y_is_tile:
-        raise TypeError("tile * tile is not supported; use tile_map(wp.mul, a, b) instead")
-
-    if not (x_is_tile or y_is_tile):
+    if not (a_is_tile or b_is_tile):
         raise TypeError("tile mul requires at least one tile operand")
 
-    tile_type = x if x_is_tile else y
-    const_type = y if x_is_tile else x
+    if a_is_tile and b_is_tile:
+        # tile * tile: validate shapes match, at least one dtype must be scalar
+        if len(a.shape) != len(b.shape):
+            raise ValueError(f"Shapes must have same dimensions: {len(a.shape)} vs {len(b.shape)}")
+        for i in range(len(a.shape)):
+            if a.shape[i] != b.shape[i]:
+                raise ValueError(f"Shape mismatch on dim {i}: {a.shape} vs {b.shape}")
+        if not type_is_scalar(a.dtype) and not type_is_scalar(b.dtype):
+            raise TypeError(
+                f"Cannot multiply tile<{type_repr(a.dtype)}> by tile<{type_repr(b.dtype)}>:"
+                " at least one element type must be scalar"
+            )
+        a_scalar = type_scalar_type(a.dtype)
+        b_scalar = type_scalar_type(b.dtype)
+        if a_scalar != b_scalar:
+            raise TypeError(f"Underlying scalar types don't match: {type_repr(a_scalar)} vs {type_repr(b_scalar)}")
+        # Result dtype: vec/mat side wins; if both scalar they're equal
+        if type_is_vector(a.dtype) or type_is_matrix(a.dtype):
+            result_dtype = a.dtype
+        elif type_is_vector(b.dtype) or type_is_matrix(b.dtype):
+            result_dtype = b.dtype
+        else:
+            result_dtype = a.dtype
+        return tile(dtype=result_dtype, shape=a.shape)
+
+    # tile * const or const * tile
+    tile_type = a if a_is_tile else b
+    const_type = b if a_is_tile else a
 
     # Constant must be scalar/vector/matrix
     if not (type_is_scalar(const_type) or type_is_vector(const_type) or type_is_matrix(const_type)):
-        raise TypeError(f"The non-tile operand must be a scalar, vector, or matrix, got {const_type}")
+        raise TypeError(f"Non-tile operand must be scalar/vec/mat, got {type_repr(const_type)}")
 
     # Underlying scalar-type compatibility
-    tile_scalar = getattr(tile_type.dtype, "_wp_scalar_type_", tile_type.dtype)
-    const_scalar = getattr(const_type, "_wp_scalar_type_", const_type)
+    tile_scalar = type_scalar_type(tile_type.dtype)
+    const_scalar = type_scalar_type(const_type)
     if tile_scalar != const_scalar:
-        raise TypeError(f"Underlying scalar types don't match: tile has {tile_scalar}, constant has {const_scalar}")
-
-    # Disallow vec/mat * vec/mat (at least one side must be scalar)
-    if not type_is_scalar(tile_type.dtype) and not type_is_scalar(const_type):
         raise TypeError(
-            f"Cannot multiply tile<{tile_type.dtype}> by {const_type}: at least one operand must be a scalar type"
+            f"Underlying scalar types don't match: tile={type_repr(tile_scalar)}, const={type_repr(const_scalar)}"
         )
 
-    # Result dtype: adopt const dtype if vector/matrix; otherwise keep the tile's dtype
+    # At least one side must be scalar (can't multiply vec by vec)
+    if not type_is_scalar(tile_type.dtype) and not type_is_scalar(const_type):
+        if a_is_tile:
+            raise TypeError(
+                f"Cannot multiply tile<{type_repr(tile_type.dtype)}> by {type_repr(const_type)}:"
+                " at least one operand must be a scalar type"
+            )
+        else:
+            raise TypeError(
+                f"Cannot multiply {type_repr(const_type)} by tile<{type_repr(tile_type.dtype)}>:"
+                " at least one operand must be a scalar type"
+            )
+
+    # Result dtype: adopt const dtype if vec/mat; otherwise keep tile's dtype
+    result_dtype = const_type if (type_is_vector(const_type) or type_is_matrix(const_type)) else tile_type.dtype
+    return tile(dtype=result_dtype, shape=tile_type.shape)
+
+
+def tile_div_value_func(arg_types, arg_values):
+    """Value function for tile division.
+
+    Handles:
+    1. tile / tile: element-wise division (shapes must match)
+    2. tile / constant: divide each element by scalar/vec/mat
+    3. constant / tile: divide scalar/vec/mat by each element
+
+    At least one operand must be a scalar type (can't divide vec by vec).
+    Underlying scalar types must match.
+    """
+    if arg_types is None:
+        return tile(dtype=Any, shape=tuple[int, ...])
+
+    a = arg_types["a"]
+    b = arg_types["b"]
+
+    a_is_tile = is_tile(a)
+    b_is_tile = is_tile(b)
+
+    if not (a_is_tile or b_is_tile):
+        raise TypeError("tile div requires at least one tile operand")
+
+    if a_is_tile and b_is_tile:
+        # tile / tile: validate shapes match, at least one dtype must be scalar
+        if len(a.shape) != len(b.shape):
+            raise ValueError(f"Shapes must have same dimensions: {len(a.shape)} vs {len(b.shape)}")
+        for i in range(len(a.shape)):
+            if a.shape[i] != b.shape[i]:
+                raise ValueError(f"Shape mismatch on dim {i}: {a.shape} vs {b.shape}")
+        if not type_is_scalar(a.dtype) and not type_is_scalar(b.dtype):
+            raise TypeError(
+                f"Cannot divide tile<{type_repr(a.dtype)}> by tile<{type_repr(b.dtype)}>:"
+                " at least one element type must be scalar"
+            )
+        a_scalar = type_scalar_type(a.dtype)
+        b_scalar = type_scalar_type(b.dtype)
+        if a_scalar != b_scalar:
+            raise TypeError(f"Underlying scalar types don't match: {type_repr(a_scalar)} vs {type_repr(b_scalar)}")
+        # Result dtype: vec/mat side wins; if both scalar they're equal
+        if type_is_vector(a.dtype) or type_is_matrix(a.dtype):
+            result_dtype = a.dtype
+        elif type_is_vector(b.dtype) or type_is_matrix(b.dtype):
+            result_dtype = b.dtype
+        else:
+            result_dtype = a.dtype
+        return tile(dtype=result_dtype, shape=a.shape)
+
+    # tile / const or const / tile
+    tile_type = a if a_is_tile else b
+    const_type = b if a_is_tile else a
+
+    # Constant must be scalar/vector/matrix
+    if not (type_is_scalar(const_type) or type_is_vector(const_type) or type_is_matrix(const_type)):
+        raise TypeError(f"Non-tile operand must be scalar/vec/mat, got {type_repr(const_type)}")
+
+    # Underlying scalar-type compatibility
+    tile_scalar = type_scalar_type(tile_type.dtype)
+    const_scalar = type_scalar_type(const_type)
+    if tile_scalar != const_scalar:
+        raise TypeError(
+            f"Underlying scalar types don't match: tile={type_repr(tile_scalar)}, const={type_repr(const_scalar)}"
+        )
+
+    # At least one side must be scalar (can't divide vec by vec)
+    if not type_is_scalar(tile_type.dtype) and not type_is_scalar(const_type):
+        if a_is_tile:
+            raise TypeError(
+                f"Cannot divide tile<{type_repr(tile_type.dtype)}> by {type_repr(const_type)}:"
+                " at least one operand must be a scalar type"
+            )
+        else:
+            raise TypeError(
+                f"Cannot divide {type_repr(const_type)} by tile<{type_repr(tile_type.dtype)}>:"
+                " at least one operand must be a scalar type"
+            )
+
+    # Result dtype: adopt const dtype if vec/mat; otherwise keep tile's dtype
     result_dtype = const_type if (type_is_vector(const_type) or type_is_matrix(const_type)) else tile_type.dtype
     return tile(dtype=result_dtype, shape=tile_type.shape)
 
@@ -11122,6 +11511,20 @@ add_builtin(
     # variadic=True,
     native_func="tile_sub",
     doc="""Subtract ``b`` from ``a``.""",
+    group="Tile Primitives",
+    export=False,
+)
+
+# NOTE: The tile*tile overload must be registered before the tile*Any overload below.
+# Warp's overload resolution tries earlier registrations first, so if tile*Any were
+# registered first, tile*tile would silently route to tile_mul instead of
+# tile_mul_elementwise. The same applies to the div overloads further below.
+add_builtin(
+    "mul",
+    input_types={"a": tile(dtype=Any, shape=tuple[int, ...]), "b": tile(dtype=Any, shape=tuple[int, ...])},
+    value_func=tile_mul_value_func,
+    native_func="tile_mul_elementwise",
+    doc="""Element-wise multiplication of tiles.""",
     group="Tile Primitives",
     export=False,
 )
@@ -11174,14 +11577,14 @@ add_builtin(
 
 add_builtin(
     "mul",
-    input_types={"x": tile(dtype=Any, shape=tuple[int, ...]), "y": Any},
+    input_types={"a": tile(dtype=Any, shape=tuple[int, ...]), "b": Any},
     value_func=tile_mul_value_func,
     doc="""Multiply two values.
 
-    Scale each element of a tile by a scalar.
+    Multiply each element of a tile by a constant (scalar, vector, or matrix).
 
-    If the tile's element type is not scalar, the constant must be a scalar type and vice versa.
-    Underlying scalar types must match. Result dtype follows standard scalar multiplication rules.""",
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.""",
     export=False,
     native_func="tile_mul",
     group="Operators",
@@ -11191,22 +11594,69 @@ add_builtin(
 # Dispatch function for const*tile that reorders args so tile comes first
 def tile_mul_const_first_dispatch_func(input_types: Mapping[str, type], return_type: Any, args: Mapping[str, Var]):
     # Reorder: (const, tile) -> (tile, const) for C++ tile_mul(Tile&, const S&)
-    return ((args["y"], args["x"]), ())
+    return ((args["b"], args["a"]), ())
 
 
 add_builtin(
     "mul",
-    input_types={"x": Any, "y": tile(dtype=Any, shape=tuple[int, ...])},
+    input_types={"a": Any, "b": tile(dtype=Any, shape=tuple[int, ...])},
     value_func=tile_mul_value_func,
     dispatch_func=tile_mul_const_first_dispatch_func,
     doc="""Multiply two values.
 
-    Scale each element of a tile by a scalar.
+    Multiply each element of a tile by a constant (scalar, vector, or matrix).
 
-    If the tile's element type is not scalar, the constant must be a scalar type and vice versa.
-    Underlying scalar types must match. Result dtype follows standard scalar multiplication rules.""",
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.""",
     export=False,
     native_func="tile_mul",
+    group="Operators",
+)
+
+
+# NOTE: The tile/tile overload must be registered before the tile/Any and Any/tile overloads below.
+# See the equivalent note above tile*tile mul for details.
+add_builtin(
+    "div",
+    input_types={"a": tile(dtype=Any, shape=tuple[int, ...]), "b": tile(dtype=Any, shape=tuple[int, ...])},
+    value_func=tile_div_value_func,
+    native_func="tile_div_elementwise",
+    doc="""Element-wise division of tiles.""",
+    group="Tile Primitives",
+    export=False,
+)
+
+
+# tile / scalar
+add_builtin(
+    "div",
+    input_types={"a": tile(dtype=Any, shape=tuple[int, ...]), "b": Any},
+    value_func=tile_div_value_func,
+    native_func="tile_div",
+    doc="""Divide tile elements by a constant.
+
+    Divide each element of a tile by a constant (scalar, vector, or matrix).
+
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.""",
+    export=False,
+    group="Operators",
+)
+
+
+# scalar / tile
+add_builtin(
+    "div",
+    input_types={"a": Any, "b": tile(dtype=Any, shape=tuple[int, ...])},
+    value_func=tile_div_value_func,
+    native_func="tile_div",
+    doc="""Divide a constant by tile elements.
+
+    Divide a constant (scalar, vector, or matrix) by each element of a tile.
+
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.""",
+    export=False,
     group="Operators",
 )
 
@@ -11447,8 +11897,16 @@ def tile_matmul_lto_dispatch_func(
     num_threads = options["block_dim"]
     arch = options["output_arch"]
 
-    if arch is None or not warp._src.context.runtime.core.wp_is_mathdx_enabled():
-        # CPU/no-MathDx dispatch
+    if (
+        arch is None
+        or not warp._src.context.runtime.core.wp_is_mathdx_enabled()
+        or not (
+            options.get("enable_mathdx_gemm")
+            if options.get("enable_mathdx_gemm") is not None
+            else warp.config.enable_mathdx_gemm
+        )
+    ):
+        # CPU/no-MathDx dispatch (or mathdx GEMM disabled via module option)
         return ((0, 0, 0, a, b, out, alpha, beta), (), [], 0)
     else:
 

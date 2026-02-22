@@ -100,11 +100,16 @@ class texture3d_t(ctypes.Structure):
 class Texture:
     """Unified texture class for hardware-accelerated sampling on GPU and software sampling on CPU.
 
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change without a formal deprecation
+        cycle.
+
     This class handles both 2D and 3D textures. The dimensionality is determined automatically
     from the input data shape, or can be set explicitly via the ``dims`` parameter or by using
     the :class:`Texture2D` or :class:`Texture3D` subclasses.
 
-    Textures provide hardware-accelerated filtering and addressing for regularly-gridded data
+    Textures provide hardware-accelerated filtering and addressing for regularly gridded data
     on CUDA devices. On CPU, software-based filtering and addressing is used. Supports
     bilinear/trilinear interpolation and various addressing modes (wrap, clamp, mirror, border).
 
@@ -145,6 +150,8 @@ class Texture:
         instance = super().__new__(cls)
         instance._tex_handle = 0
         instance._array_handle = 0
+        instance._surface_handle = 0
+        instance._surface_access = False
         return instance
 
     def __init__(
@@ -163,6 +170,7 @@ class Texture:
         normalized_coords: bool = True,
         device: DeviceLike = None,
         dims: int | None = None,
+        surface_access: bool = False,
     ):
         """Create a texture.
 
@@ -197,6 +205,9 @@ class Texture:
             device: Device on which to create the texture.
             dims: Explicit dimensionality (2 or 3). If ``None``,
                 auto-detected from ``data``.
+            surface_access: If ``True`` and ``device`` is CUDA, allocates the backing
+                CUDA array with surface load/store support so :attr:`cuda_surface`
+                can be used.
         """
         import warp._src.context  # noqa: PLC0415
 
@@ -231,8 +242,10 @@ class Texture:
             self._address_mode_v = resolved_v
             self._address_mode_w = resolved_w
             self._normalized_coords = normalized_coords
+            self._surface_access = bool(surface_access and self.device.is_cuda)
             self._tex_handle = 0
             self._array_handle = 0
+            self._surface_handle = 0
             return
 
         # Extract data and dimensions
@@ -257,6 +270,7 @@ class Texture:
         self._address_mode_v = resolved_v
         self._address_mode_w = resolved_w
         self._normalized_coords = normalized_coords
+        self._surface_access = bool(surface_access and self.device.is_cuda)
 
         # Create the texture
         self._create_texture(data_flat)
@@ -264,19 +278,17 @@ class Texture:
     def _detect_dims(self, data, depth: int) -> int:
         """Auto-detect texture dimensionality from data or depth parameter."""
         if data is not None:
-            if isinstance(data, np.ndarray):
-                np_data = data
-            elif is_array(data):
-                np_data = data.numpy()
+            if isinstance(data, np.ndarray) or is_array(data):
+                ndim = data.ndim
+                shape = data.shape
             else:
                 raise TypeError("data must be a NumPy array or Warp array")
 
-            ndim = np_data.ndim
             if ndim == 4:
                 return 3  # (depth, height, width, channels)
             elif ndim == 3:
                 # Could be (height, width, channels) for 2D or (depth, height, width) for 3D
-                if np_data.shape[-1] not in (1, 2, 4):
+                if shape[-1] not in (1, 2, 4):
                     return 3  # Last dim is not a valid channel count, so must be 3D
                 else:
                     # Ambiguous case: last dim could be channels (for 2D) or width (for 3D)
@@ -284,10 +296,10 @@ class Texture:
                     from warp._src.utils import warn  # noqa: PLC0415
 
                     warn(
-                        f"Ambiguous array shape {np_data.shape}: could be interpreted as 2D texture "
-                        f"with shape (height={np_data.shape[0]}, width={np_data.shape[1]}, "
-                        f"channels={np_data.shape[2]}) or 3D texture with shape "
-                        f"(depth={np_data.shape[0]}, height={np_data.shape[1]}, width={np_data.shape[2]}). "
+                        f"Ambiguous array shape {shape}: could be interpreted as 2D texture "
+                        f"with shape (height={shape[0]}, width={shape[1]}, "
+                        f"channels={shape[2]}) or 3D texture with shape "
+                        f"(depth={shape[0]}, height={shape[1]}, width={shape[2]}). "
                         f"Defaulting to 3D. Use dims=2 parameter or Texture2D class for 2D textures.",
                         stacklevel=3,
                     )
@@ -350,6 +362,7 @@ class Texture:
                     self._address_mode_u,
                     self._address_mode_v,
                     self._normalized_coords,
+                    self._surface_access,
                     data_ptr,
                     ctypes.byref(tex_handle),
                     ctypes.byref(array_handle),
@@ -381,6 +394,7 @@ class Texture:
                     self._address_mode_v,
                     self._address_mode_w,
                     self._normalized_coords,
+                    self._surface_access,
                     data_ptr,
                     ctypes.byref(tex_handle),
                     ctypes.byref(array_handle),
@@ -402,7 +416,7 @@ class Texture:
                 )
 
         if not success:
-            raise RuntimeError(f"Failed to create Texture{self._dims}D")
+            raise RuntimeError(f"Failed to create Texture{self._dims}D: {self.runtime.get_error_string()}")
 
         self._tex_handle = tex_handle.value
         self._array_handle = array_handle.value
@@ -415,6 +429,10 @@ class Texture:
             if self._dims == 2:
                 if self.device.is_cuda:
                     with self.device.context_guard:
+                        if self._surface_handle:
+                            self.runtime.core.wp_texture_array_destroy_surface_device(
+                                self.device.context, self._surface_handle
+                            )
                         self.runtime.core.wp_texture2d_destroy_device(
                             self.device.context, self._tex_handle, self._array_handle
                         )
@@ -423,6 +441,10 @@ class Texture:
             else:  # 3D
                 if self.device.is_cuda:
                     with self.device.context_guard:
+                        if self._surface_handle:
+                            self.runtime.core.wp_texture_array_destroy_surface_device(
+                                self.device.context, self._surface_handle
+                            )
                         self.runtime.core.wp_texture3d_destroy_device(
                             self.device.context, self._tex_handle, self._array_handle
                         )
@@ -516,9 +538,197 @@ class Texture:
         return self._normalized_coords
 
     @property
-    def id(self) -> int:
-        """Texture handle ID (for advanced use)."""
+    def cuda_texture(self) -> int:
+        """CUDA texture object handle.
+
+        Returns:
+            CUDA ``cudaTextureObject_t`` handle for CUDA textures.
+        """
+        if not self.device.is_cuda:
+            raise RuntimeError(
+                "cuda_texture is only supported for CUDA textures. Use id for a device-independent handle."
+            )
         return self._tex_handle
+
+    @property
+    def id(self) -> int:
+        """Device-independent texture identifier.
+
+        On CUDA textures, this is the same handle as :attr:`cuda_texture` (``cudaTextureObject_t``).
+        On host textures, this is the backing host texture handle.
+        """
+        return self._tex_handle
+
+    @property
+    def cuda_array(self) -> int:
+        """CUDA array handle backing this texture.
+
+        Returns:
+            CUDA ``cudaArray_t`` handle for CUDA textures.
+        """
+        if not self.device.is_cuda:
+            raise RuntimeError("cuda_array is only supported for CUDA textures.")
+        return self._array_handle
+
+    @property
+    def cuda_surface(self) -> int:
+        """CUDA surface object handle backing this texture.
+
+        The surface object is created lazily on first access and cached for the texture lifetime.
+
+        Returns:
+            CUDA ``cudaSurfaceObject_t`` handle for CUDA textures with ``surface_access=True``.
+        """
+        if self._surface_handle:
+            return self._surface_handle
+        if not self.device.is_cuda:
+            raise RuntimeError("cuda_surface is only supported for CUDA textures.")
+        if not self._surface_access:
+            raise RuntimeError(
+                "Texture CUDA array was not created with surface load/store support. "
+                "Create the texture with surface_access=True."
+            )
+        if not self._array_handle:
+            raise RuntimeError("Texture has no CUDA array backing storage.")
+
+        surface_handle = ctypes.c_uint64(0)
+        result = self.runtime.core.wp_texture_array_create_surface_device(
+            self.device.context,
+            self._array_handle,
+            ctypes.byref(surface_handle),
+        )
+        if not result:
+            raise RuntimeError(
+                f"Failed to create CUDA surface object from texture array: {self.runtime.get_error_string()}"
+            )
+
+        self._surface_handle = int(surface_handle.value)
+        return self._surface_handle
+
+    def _validate_cuda_copy_array_common(self, arr: array, arg_name: str):
+        if not self.device.is_cuda:
+            raise RuntimeError("CUDA array copy helpers require a CUDA texture.")
+        if not self._array_handle:
+            raise RuntimeError("Texture has no CUDA array backing storage.")
+        if not isinstance(arr, array):
+            raise TypeError(f"{arg_name} must be a wp.array.")
+        if not arr.device.is_cuda:
+            raise RuntimeError(f"{arg_name} must be a CUDA array.")
+        if arr.device != self.device:
+            raise RuntimeError(f"{arg_name} must be on the same CUDA device as the texture.")
+
+    def _validate_2d_cuda_copy_array(self, arr: array, arg_name: str) -> tuple[int, int, int]:
+        self._validate_cuda_copy_array_common(arr, arg_name)
+        if arr.ndim != 2:
+            raise ValueError(f"{arg_name} must be a 2D array.")
+
+        height = int(arr.shape[0])
+        if height != self._height:
+            raise ValueError(f"{arg_name} height ({height}) does not match texture height ({self._height}).")
+
+        pitch = int(arr.strides[0])
+        width_bytes = int(arr.shape[1]) * int(arr.strides[1])
+        elem_size = int(np.dtype(self._dtype).itemsize)
+        expected_width_bytes = int(self._width) * int(self._num_channels) * elem_size
+        if width_bytes != expected_width_bytes:
+            raise ValueError(
+                f"{arg_name} row size ({width_bytes} bytes) does not match texture row size ({expected_width_bytes} bytes)."
+            )
+
+        return pitch, width_bytes, height
+
+    def _validate_3d_cuda_copy_array(self, arr: array, arg_name: str) -> tuple[int, int, int, int]:
+        self._validate_cuda_copy_array_common(arr, arg_name)
+        if arr.ndim != 3:
+            raise ValueError(f"{arg_name} must be a 3D array.")
+
+        depth = int(arr.shape[0])
+        if depth != self._depth:
+            raise ValueError(f"{arg_name} depth ({depth}) does not match texture depth ({self._depth}).")
+
+        height = int(arr.shape[1])
+        if height != self._height:
+            raise ValueError(f"{arg_name} height ({height}) does not match texture height ({self._height}).")
+
+        pitch = int(arr.strides[1])
+        width_bytes = int(arr.shape[2]) * int(arr.strides[2])
+        elem_size = int(np.dtype(self._dtype).itemsize)
+        expected_width_bytes = int(self._width) * int(self._num_channels) * elem_size
+        if width_bytes != expected_width_bytes:
+            raise ValueError(
+                f"{arg_name} row size ({width_bytes} bytes) does not match texture row size ({expected_width_bytes} bytes)."
+            )
+
+        slice_stride = int(arr.strides[0])
+        expected_slice_stride = pitch * height
+        if slice_stride != expected_slice_stride:
+            raise ValueError(
+                f"{arg_name} slice stride ({slice_stride} bytes) does not match expected contiguous slice stride ({expected_slice_stride} bytes)."
+            )
+
+        return pitch, width_bytes, height, depth
+
+    def _copy_from_array_2d(self, src: array):
+        src_pitch, width_bytes, height = self._validate_2d_cuda_copy_array(src, "src")
+        result = self.runtime.core.wp_texture2d_copy_from_array_device(
+            self.device.context,
+            self.device.stream.cuda_stream,
+            self._array_handle,
+            src.ptr,
+            src_pitch,
+            width_bytes,
+            height,
+        )
+        if not result:
+            raise RuntimeError(f"Texture CUDA array copy (array -> texture) failed: {self.runtime.get_error_string()}")
+
+    def _copy_to_array_2d(self, dst: array):
+        dst_pitch, width_bytes, height = self._validate_2d_cuda_copy_array(dst, "dst")
+        result = self.runtime.core.wp_texture2d_copy_to_array_device(
+            self.device.context,
+            self.device.stream.cuda_stream,
+            dst.ptr,
+            dst_pitch,
+            self._array_handle,
+            width_bytes,
+            height,
+        )
+        if not result:
+            raise RuntimeError(f"Texture CUDA array copy (texture -> array) failed: {self.runtime.get_error_string()}")
+
+    def _copy_from_array_3d(self, src: array):
+        src_pitch, width_bytes, height, depth = self._validate_3d_cuda_copy_array(src, "src")
+        src_height = height
+        result = self.runtime.core.wp_texture3d_copy_from_array_device(
+            self.device.context,
+            self.device.stream.cuda_stream,
+            self._array_handle,
+            src.ptr,
+            src_pitch,
+            src_height,
+            width_bytes,
+            height,
+            depth,
+        )
+        if not result:
+            raise RuntimeError(f"Texture CUDA array copy (array -> texture) failed: {self.runtime.get_error_string()}")
+
+    def _copy_to_array_3d(self, dst: array):
+        dst_pitch, width_bytes, height, depth = self._validate_3d_cuda_copy_array(dst, "dst")
+        dst_height = height
+        result = self.runtime.core.wp_texture3d_copy_to_array_device(
+            self.device.context,
+            self.device.stream.cuda_stream,
+            dst.ptr,
+            dst_pitch,
+            dst_height,
+            self._array_handle,
+            width_bytes,
+            height,
+            depth,
+        )
+        if not result:
+            raise RuntimeError(f"Texture CUDA array copy (texture -> array) failed: {self.runtime.get_error_string()}")
 
     def __ctype__(self):
         """Return the ctypes structure for passing to kernels."""
@@ -532,6 +742,11 @@ class Texture:
 
 class Texture2D(Texture):
     """2D texture class.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change without a formal deprecation
+        cycle. See :class:`Texture` for details.
 
     This is a specialized version of :class:`Texture` with dimensionality fixed to 2.
     Use this for explicit 2D texture creation and as a type hint in kernel parameters.
@@ -575,6 +790,7 @@ class Texture2D(Texture):
         address_mode_v: int | None = None,
         normalized_coords: bool = True,
         device: DeviceLike = None,
+        surface_access: bool = False,
     ):
         super().__init__(
             data=data,
@@ -588,8 +804,17 @@ class Texture2D(Texture):
             address_mode_u=address_mode_u,
             address_mode_v=address_mode_v,
             normalized_coords=normalized_coords,
+            surface_access=surface_access,
             device=device,
         )
+
+    def copy_from_array(self, src: array):
+        """Copy from a CUDA 2D Warp array into this texture's CUDA array."""
+        self._copy_from_array_2d(src)
+
+    def copy_to_array(self, dst: array):
+        """Copy from this texture's CUDA array into a CUDA 2D Warp array."""
+        self._copy_to_array_2d(dst)
 
     def __ctype__(self) -> texture2d_t:
         """Return the ctypes structure for passing to kernels."""
@@ -600,6 +825,11 @@ class Texture2D(Texture):
 
 class Texture3D(Texture):
     """3D texture class.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change without a formal deprecation
+        cycle. See :class:`Texture` for details.
 
     This is a specialized version of :class:`Texture` with dimensionality fixed to 3.
     Use this for explicit 3D texture creation and as a type hint in kernel parameters.
@@ -646,6 +876,7 @@ class Texture3D(Texture):
         address_mode_w: int | None = None,
         normalized_coords: bool = True,
         device: DeviceLike = None,
+        surface_access: bool = False,
     ):
         super().__init__(
             data=data,
@@ -660,8 +891,17 @@ class Texture3D(Texture):
             address_mode_v=address_mode_v,
             address_mode_w=address_mode_w,
             normalized_coords=normalized_coords,
+            surface_access=surface_access,
             device=device,
         )
+
+    def copy_from_array(self, src: array):
+        """Copy from a CUDA 3D Warp array into this texture's CUDA array."""
+        self._copy_from_array_3d(src)
+
+    def copy_to_array(self, dst: array):
+        """Copy from this texture's CUDA array into a CUDA 3D Warp array."""
+        self._copy_to_array_3d(dst)
 
     def __ctype__(self) -> texture3d_t:
         """Return the ctypes structure for passing to kernels."""

@@ -75,6 +75,7 @@ Vector Math
    get_diag
    identity
    inverse
+   inverse_approx
    length
    length_sq
    matrix
@@ -104,6 +105,7 @@ Quaternion Math
    :template: builtins.rst
 
    quat_from_axis_angle
+   quat_from_euler
    quat_from_matrix
    quat_identity
    quat_inverse
@@ -112,7 +114,11 @@ Quaternion Math
    quat_rpy
    quat_slerp
    quat_to_axis_angle
+   quat_to_euler
    quat_to_matrix
+   quat_to_rpy
+   quat_twist
+   quat_twist_angle
    quaternion
 
 Transformations
@@ -155,6 +161,9 @@ Spatial Math
    spatial_mass
    spatial_top
    spatial_vector
+   transform_twist
+   transform_wrench
+   velocity_at_point
 
 Tile Primitives
 ---------------
@@ -183,6 +192,7 @@ Tile Primitives
    tile_diag_add
    tile_extract
    tile_fft
+   tile_from_thread
    tile_full
    tile_ifft
    tile_load
@@ -381,6 +391,7 @@ Operators
    bit_or
    bit_xor
    div
+   div_approx
    floordiv
    invert
    lshift

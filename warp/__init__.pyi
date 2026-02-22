@@ -35,8 +35,8 @@ Cols = TypeVar("Cols", bound=int)
 DType = TypeVar("DType")
 Shape = TypeVar("Shape")
 
-class Vector(Generic[Length, Scalar]): ...
-class Matrix(Generic[Rows, Cols, Scalar]): ...
+class Vector(Generic[Scalar, Length]): ...
+class Matrix(Generic[Scalar, Rows, Cols]): ...
 class Quaternion(Generic[Float]): ...
 class Transformation(Generic[Float]): ...
 class Array(Generic[DType]): ...
@@ -143,6 +143,8 @@ from warp._src.texture import TextureAddressMode as TextureAddressMode
 from warp._src.types import BvhQuery as BvhQuery
 from warp._src.types import BvhQueryTiled as BvhQueryTiled
 from warp._src.types import HashGridQuery as HashGridQuery
+from warp._src.types import HashGridQueryD as HashGridQueryD
+from warp._src.types import HashGridQueryH as HashGridQueryH
 from warp._src.types import MeshQueryAABB as MeshQueryAABB
 from warp._src.types import MeshQueryAABBTiled as MeshQueryAABBTiled
 from warp._src.types import MeshQueryPoint as MeshQueryPoint
@@ -1803,7 +1805,7 @@ def min(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def min(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def min(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Compute the minimum value.
 
     Returns:
@@ -1812,7 +1814,7 @@ def min(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
     ...
 
 @over
-def min(a: Vector[Any, Scalar]) -> Scalar:
+def min(a: Vector[Scalar, Any]) -> Scalar:
     """Compute the minimum value.
 
     Returns:
@@ -1826,7 +1828,7 @@ def max(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def max(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def max(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Compute the maximum value.
 
     Returns:
@@ -1835,7 +1837,7 @@ def max(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
     ...
 
 @over
-def max(a: Vector[Any, Scalar]) -> Scalar:
+def max(a: Vector[Scalar, Any]) -> Scalar:
     """Compute the maximum value.
 
     Returns:
@@ -1853,7 +1855,7 @@ def abs(x: Scalar) -> Scalar:
     ...
 
 @over
-def abs(x: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def abs(x: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Compute the absolute value of ``x``.
 
     Returns:
@@ -1871,7 +1873,7 @@ def sign(x: Scalar) -> Scalar:
     ...
 
 @over
-def sign(x: Vector[Any, Scalar]) -> Scalar:
+def sign(x: Vector[Scalar, Any]) -> Scalar:
     """Compute the sign of ``x``.
 
     Returns:
@@ -2036,7 +2038,7 @@ def isfinite(a: Scalar) -> bool:
     ...
 
 @over
-def isfinite(a: Vector[Any, Scalar]) -> bool:
+def isfinite(a: Vector[Scalar, Any]) -> bool:
     """Check if all elements of ``a`` are finite.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2054,7 +2056,7 @@ def isfinite(a: Quaternion[Float]) -> bool:
     ...
 
 @over
-def isfinite(a: Matrix[Any, Any, Scalar]) -> bool:
+def isfinite(a: Matrix[Scalar, Any, Any]) -> bool:
     """Check if all elements of ``a`` are finite.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2072,7 +2074,7 @@ def isnan(a: Scalar) -> bool:
     ...
 
 @over
-def isnan(a: Vector[Any, Scalar]) -> bool:
+def isnan(a: Vector[Scalar, Any]) -> bool:
     """Check if any element of ``a`` is NaN.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2090,7 +2092,7 @@ def isnan(a: Quaternion[Float]) -> bool:
     ...
 
 @over
-def isnan(a: Matrix[Any, Any, Scalar]) -> bool:
+def isnan(a: Matrix[Scalar, Any, Any]) -> bool:
     """Check if any element of ``a`` is NaN.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2108,7 +2110,7 @@ def isinf(a: Scalar) -> bool:
     ...
 
 @over
-def isinf(a: Vector[Any, Scalar]) -> bool:
+def isinf(a: Vector[Scalar, Any]) -> bool:
     """Check if any element of ``a`` is positive or negative infinity.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2126,7 +2128,7 @@ def isinf(a: Quaternion[Float]) -> bool:
     ...
 
 @over
-def isinf(a: Matrix[Any, Any, Scalar]) -> bool:
+def isinf(a: Matrix[Scalar, Any, Any]) -> bool:
     """Check if any element of ``a`` is positive or negative infinity.
 
     .. attention:: This function will no longer support integer types as input. Please use float types instead.
@@ -2135,7 +2137,7 @@ def isinf(a: Matrix[Any, Any, Scalar]) -> bool:
     ...
 
 @over
-def dot(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Scalar:
+def dot(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Scalar:
     """Compute the dot product."""
     ...
 
@@ -2144,32 +2146,32 @@ def dot(a: Quaternion[Float], b: Quaternion[Float]) -> Float:
     """Compute the dot product."""
     ...
 
-def ddot(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Scalar:
+def ddot(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Scalar:
     """Compute the double dot product between two matrices."""
     ...
 
-def argmin(a: Vector[Any, Scalar]) -> uint32:
+def argmin(a: Vector[Scalar, Any]) -> uint32:
     """Compute the index of the minimum element of vector ``a``."""
     ...
 
-def argmax(a: Vector[Any, Scalar]) -> uint32:
+def argmax(a: Vector[Scalar, Any]) -> uint32:
     """Compute the index of the maximum element of vector ``a``."""
     ...
 
-def outer(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def outer(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Matrix[Scalar, Any, Any]:
     """Compute the outer product ``a*b^T`` for two vectors."""
     ...
 
-def cross(a: Vector[Literal[3], Scalar], b: Vector[Literal[3], Scalar]) -> Vector[Literal[3], Scalar]:
+def cross(a: Vector[Scalar, Literal[3]], b: Vector[Scalar, Literal[3]]) -> Vector[Scalar, Literal[3]]:
     """Compute the cross product of two 3D vectors."""
     ...
 
-def skew(vec: Vector[Literal[3], Scalar]) -> Matrix[Literal[3], Literal[3], Scalar]:
+def skew(vec: Vector[Scalar, Literal[3]]) -> Matrix[Scalar, Literal[3], Literal[3]]:
     """Compute the skew-symmetric 3x3 matrix for a 3D vector ``vec``."""
     ...
 
 @over
-def length(a: Vector[Any, Float]) -> Float:
+def length(a: Vector[Float, Any]) -> Float:
     """Compute the length of ``a``.
 
     Compute the length of a floating-point vector.
@@ -2185,7 +2187,7 @@ def length(a: Quaternion[Float]) -> Float:
     ...
 
 @over
-def length_sq(a: Vector[Any, Scalar]) -> Scalar:
+def length_sq(a: Vector[Scalar, Any]) -> Scalar:
     """Compute the squared length of ``a``.
 
     Compute the squared length of a vector.
@@ -2201,7 +2203,7 @@ def length_sq(a: Quaternion[Float]) -> Float:
     ...
 
 @over
-def normalize(a: Vector[Any, Float]) -> Vector[Any, Float]:
+def normalize(a: Vector[Float, Any]) -> Vector[Float, Any]:
     """Compute the normalized value of ``a``.
 
     If ``length(a)`` is 0, the zero vector is returned.
@@ -2216,73 +2218,97 @@ def normalize(a: Quaternion[Float]) -> Quaternion[Float]:
     """
     ...
 
-def transpose(a: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def transpose(a: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Compute the transpose of matrix ``a``."""
     ...
 
 @over
-def inverse(a: Matrix[Literal[2], Literal[2], Float]) -> Matrix[Any, Any, Float]:
+def inverse(a: Matrix[Float, Literal[2], Literal[2]]) -> Matrix[Float, Any, Any]:
     """Compute the inverse of matrix ``a``."""
     ...
 
 @over
-def inverse(a: Matrix[Literal[3], Literal[3], Float]) -> Matrix[Any, Any, Float]:
+def inverse(a: Matrix[Float, Literal[3], Literal[3]]) -> Matrix[Float, Any, Any]:
     """Compute the inverse of matrix ``a``."""
     ...
 
 @over
-def inverse(a: Matrix[Literal[4], Literal[4], Float]) -> Matrix[Any, Any, Float]:
+def inverse(a: Matrix[Float, Literal[4], Literal[4]]) -> Matrix[Float, Any, Any]:
     """Compute the inverse of matrix ``a``."""
     ...
 
 @over
-def determinant(a: Matrix[Literal[2], Literal[2], Float]) -> Float:
+def inverse_approx(a: Matrix[Float, Literal[2], Literal[2]]) -> Matrix[Float, Any, Any]:
+    """Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.
+    """
+    ...
+
+@over
+def inverse_approx(a: Matrix[Float, Literal[3], Literal[3]]) -> Matrix[Float, Any, Any]:
+    """Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.
+    """
+    ...
+
+@over
+def inverse_approx(a: Matrix[Float, Literal[4], Literal[4]]) -> Matrix[Float, Any, Any]:
+    """Compute the inverse of matrix ``a`` using approximate GPU intrinsics.
+
+    Falls back to exact inverse on CPU.
+    """
+    ...
+
+@over
+def determinant(a: Matrix[Float, Literal[2], Literal[2]]) -> Float:
     """Compute the determinant of matrix ``a``."""
     ...
 
 @over
-def determinant(a: Matrix[Literal[3], Literal[3], Float]) -> Float:
+def determinant(a: Matrix[Float, Literal[3], Literal[3]]) -> Float:
     """Compute the determinant of matrix ``a``."""
     ...
 
 @over
-def determinant(a: Matrix[Literal[4], Literal[4], Float]) -> Float:
+def determinant(a: Matrix[Float, Literal[4], Literal[4]]) -> Float:
     """Compute the determinant of matrix ``a``."""
     ...
 
-def trace(a: Matrix[Any, Any, Scalar]) -> Scalar:
+def trace(a: Matrix[Scalar, Any, Any]) -> Scalar:
     """Compute the trace of matrix ``a``."""
     ...
 
-def diag(vec: Vector[Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def diag(vec: Vector[Scalar, Any]) -> Matrix[Scalar, Any, Any]:
     """Construct a matrix with the components of vector ``vec`` on the diagonal."""
     ...
 
-def get_diag(mat: Matrix[Any, Any, Scalar]) -> Vector[Any, Scalar]:
+def get_diag(mat: Matrix[Scalar, Any, Any]) -> Vector[Scalar, Any]:
     """Extract a vector containing the diagonal elements of square matrix ``mat``."""
     ...
 
 @over
-def cw_mul(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def cw_mul(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Compute the component-wise product of ``a`` and ``b``."""
     ...
 
 @over
-def cw_mul(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def cw_mul(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Compute the component-wise product of ``a`` and ``b``."""
     ...
 
 @over
-def cw_div(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def cw_div(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Compute the component-wise division of ``a`` by ``b``."""
     ...
 
 @over
-def cw_div(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def cw_div(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Compute the component-wise division of ``a`` by ``b``."""
     ...
 
-def vector(*args: Scalar, length: int32, dtype: Scalar) -> Vector[Any, Scalar]:
+def vector(*args: Scalar, length: int32, dtype: Scalar) -> Vector[Scalar, Any]:
     """Construct a vector of given length and dtype.
 
     If no arguments are given, the vector is zero-initialized.
@@ -2291,8 +2317,8 @@ def vector(*args: Scalar, length: int32, dtype: Scalar) -> Vector[Any, Scalar]:
 
 @over
 def matrix(
-    pos: Vector[Literal[3], Float], rot: Quaternion[Float], scale: Vector[Literal[3], Float], dtype: Float
-) -> Matrix[Literal[4], Literal[4], Float]:
+    pos: Vector[Float, Literal[3]], rot: Quaternion[Float], scale: Vector[Float, Literal[3]], dtype: Float
+) -> Matrix[Float, Literal[4], Literal[4]]:
     """Construct a matrix.
 
     Construct a 4x4 transformation matrix that applies the transformations as
@@ -2306,7 +2332,7 @@ def matrix(
     ...
 
 @over
-def matrix(*args: Scalar, shape: tuple[int, int], dtype: Scalar) -> Matrix[Any, Any, Scalar]:
+def matrix(*args: Scalar, shape: tuple[int, int], dtype: Scalar) -> Matrix[Scalar, Any, Any]:
     """Construct a matrix.
 
     Construct a matrix with the given shape and dtype.
@@ -2315,14 +2341,14 @@ def matrix(*args: Scalar, shape: tuple[int, int], dtype: Scalar) -> Matrix[Any, 
     """
     ...
 
-def identity(n: int32, dtype: Scalar) -> Matrix[Any, Any, Scalar]:
+def identity(n: int32, dtype: Scalar) -> Matrix[Scalar, Any, Any]:
     """Create an identity matrix with shape=(n,n) with the type given by ``dtype``."""
     ...
 
 @over
 def svd3(
-    A: Matrix[Literal[3], Literal[3], Float],
-) -> tuple[Matrix[Literal[3], Literal[3], Float], Vector[Literal[3], Float], Matrix[Literal[3], Literal[3], Float]]:
+    A: Matrix[Float, Literal[3], Literal[3]],
+) -> tuple[Matrix[Float, Literal[3], Literal[3]], Vector[Float, Literal[3]], Matrix[Float, Literal[3], Literal[3]]]:
     """Compute the SVD of a 3x3 matrix ``A``.
 
     The singular values are returned in ``sigma``, while the left and right basis vectors are returned in ``U`` and ``V``.
@@ -2331,10 +2357,10 @@ def svd3(
 
 @over
 def svd3(
-    A: Matrix[Literal[3], Literal[3], Float],
-    U: Matrix[Literal[3], Literal[3], Float],
-    sigma: Vector[Literal[3], Float],
-    V: Matrix[Literal[3], Literal[3], Float],
+    A: Matrix[Float, Literal[3], Literal[3]],
+    U: Matrix[Float, Literal[3], Literal[3]],
+    sigma: Vector[Float, Literal[3]],
+    V: Matrix[Float, Literal[3], Literal[3]],
 ) -> None:
     """Compute the SVD of a 3x3 matrix ``A``.
 
@@ -2344,8 +2370,8 @@ def svd3(
 
 @over
 def svd2(
-    A: Matrix[Literal[2], Literal[2], Float],
-) -> tuple[Matrix[Literal[2], Literal[2], Float], Vector[Literal[2], Float], Matrix[Literal[2], Literal[2], Float]]:
+    A: Matrix[Float, Literal[2], Literal[2]],
+) -> tuple[Matrix[Float, Literal[2], Literal[2]], Vector[Float, Literal[2]], Matrix[Float, Literal[2], Literal[2]]]:
     """Compute the SVD of a 2x2 matrix ``A``.
 
     The singular values are returned in ``sigma``, while the left and right basis vectors are returned in ``U`` and ``V``.
@@ -2354,10 +2380,10 @@ def svd2(
 
 @over
 def svd2(
-    A: Matrix[Literal[2], Literal[2], Float],
-    U: Matrix[Literal[2], Literal[2], Float],
-    sigma: Vector[Literal[2], Float],
-    V: Matrix[Literal[2], Literal[2], Float],
+    A: Matrix[Float, Literal[2], Literal[2]],
+    U: Matrix[Float, Literal[2], Literal[2]],
+    sigma: Vector[Float, Literal[2]],
+    V: Matrix[Float, Literal[2], Literal[2]],
 ) -> None:
     """Compute the SVD of a 2x2 matrix ``A``.
 
@@ -2367,8 +2393,8 @@ def svd2(
 
 @over
 def qr3(
-    A: Matrix[Literal[3], Literal[3], Float],
-) -> tuple[Matrix[Literal[3], Literal[3], Float], Matrix[Literal[3], Literal[3], Float]]:
+    A: Matrix[Float, Literal[3], Literal[3]],
+) -> tuple[Matrix[Float, Literal[3], Literal[3]], Matrix[Float, Literal[3], Literal[3]]]:
     """Compute the QR decomposition of a 3x3 matrix ``A``.
 
     The orthogonal matrix is returned in ``Q``, while the upper triangular matrix is returned in ``R``.
@@ -2377,9 +2403,9 @@ def qr3(
 
 @over
 def qr3(
-    A: Matrix[Literal[3], Literal[3], Float],
-    Q: Matrix[Literal[3], Literal[3], Float],
-    R: Matrix[Literal[3], Literal[3], Float],
+    A: Matrix[Float, Literal[3], Literal[3]],
+    Q: Matrix[Float, Literal[3], Literal[3]],
+    R: Matrix[Float, Literal[3], Literal[3]],
 ) -> None:
     """Compute the QR decomposition of a 3x3 matrix ``A``.
 
@@ -2389,8 +2415,8 @@ def qr3(
 
 @over
 def eig3(
-    A: Matrix[Literal[3], Literal[3], Float],
-) -> tuple[Matrix[Literal[3], Literal[3], Float], Vector[Literal[3], Float]]:
+    A: Matrix[Float, Literal[3], Literal[3]],
+) -> tuple[Matrix[Float, Literal[3], Literal[3]], Vector[Float, Literal[3]]]:
     """Compute the eigendecomposition of a 3x3 matrix ``A``.
 
     The eigenvectors are returned as the columns of ``Q``, while the corresponding eigenvalues are returned in ``d``.
@@ -2399,7 +2425,7 @@ def eig3(
 
 @over
 def eig3(
-    A: Matrix[Literal[3], Literal[3], Float], Q: Matrix[Literal[3], Literal[3], Float], d: Vector[Literal[3], Float]
+    A: Matrix[Float, Literal[3], Literal[3]], Q: Matrix[Float, Literal[3], Literal[3]], d: Vector[Float, Literal[3]]
 ) -> None:
     """Compute the eigendecomposition of a 3x3 matrix ``A``.
 
@@ -2425,7 +2451,7 @@ def quaternion(x: Float, y: Float, z: Float, w: Float, dtype: Scalar) -> Quatern
     ...
 
 @over
-def quaternion(ijk: Vector[Literal[3], Float], real: Float, dtype: Float) -> Quaternion[Float]:
+def quaternion(ijk: Vector[Float, Literal[3]], real: Float, dtype: Float) -> Quaternion[Float]:
     """Construct a quaternion.
 
     Use the supplied vector/scalar (type inferred from scalar type).
@@ -2444,22 +2470,22 @@ def quat_identity(dtype: Float) -> quatf:
     """Construct an identity quaternion with zero imaginary part and real part of 1.0."""
     ...
 
-def quat_from_axis_angle(axis: Vector[Literal[3], Float], angle: Float) -> Quaternion[Float]:
+def quat_from_axis_angle(axis: Vector[Float, Literal[3]], angle: Float) -> Quaternion[Float]:
     """Construct a quaternion representing a rotation of angle radians around the given axis."""
     ...
 
 @over
-def quat_to_axis_angle(quat: Quaternion[Float]) -> tuple[Vector[Literal[3], Float], Float]:
+def quat_to_axis_angle(quat: Quaternion[Float]) -> tuple[Vector[Float, Literal[3]], Float]:
     """Extract the rotation axis and angle radians a quaternion represents."""
     ...
 
 @over
-def quat_to_axis_angle(quat: Quaternion[Float], axis: Vector[Literal[3], Float], angle: Float) -> None:
+def quat_to_axis_angle(quat: Quaternion[Float], axis: Vector[Float, Literal[3]], angle: Float) -> None:
     """Extract the rotation axis and angle radians a quaternion represents."""
     ...
 
 @over
-def quat_from_matrix(mat: Matrix[Literal[3], Literal[3], Float]) -> Quaternion[Float]:
+def quat_from_matrix(mat: Matrix[Float, Literal[3], Literal[3]]) -> Quaternion[Float]:
     """Construct a quaternion from a matrix.
 
     If the matrix is not a pure rotation, but for example includes scaling or skewing, the result is undefined.
@@ -2467,7 +2493,7 @@ def quat_from_matrix(mat: Matrix[Literal[3], Literal[3], Float]) -> Quaternion[F
     ...
 
 @over
-def quat_from_matrix(mat: Matrix[Literal[4], Literal[4], Float]) -> Quaternion[Float]:
+def quat_from_matrix(mat: Matrix[Float, Literal[4], Literal[4]]) -> Quaternion[Float]:
     """Construct a quaternion from a matrix.
 
     If the top-left 3x3 block of the matrix is not a pure rotation, but for example includes scaling or skewing, the result is undefined.
@@ -2482,11 +2508,11 @@ def quat_inverse(quat: Quaternion[Float]) -> Quaternion[Float]:
     """Compute quaternion conjugate."""
     ...
 
-def quat_rotate(quat: Quaternion[Float], vec: Vector[Literal[3], Float]) -> Vector[Literal[3], Float]:
+def quat_rotate(quat: Quaternion[Float], vec: Vector[Float, Literal[3]]) -> Vector[Float, Literal[3]]:
     """Rotate a vector by a quaternion."""
     ...
 
-def quat_rotate_inv(quat: Quaternion[Float], vec: Vector[Literal[3], Float]) -> Vector[Literal[3], Float]:
+def quat_rotate_inv(quat: Quaternion[Float], vec: Vector[Float, Literal[3]]) -> Vector[Float, Literal[3]]:
     """Rotate a vector by the inverse of a quaternion."""
     ...
 
@@ -2494,12 +2520,12 @@ def quat_slerp(a: Quaternion[Float], b: Quaternion[Float], t: Float) -> Quaterni
     """Linearly interpolate between two quaternions."""
     ...
 
-def quat_to_matrix(quat: Quaternion[Float]) -> Matrix[Literal[3], Literal[3], Float]:
+def quat_to_matrix(quat: Quaternion[Float]) -> Matrix[Float, Literal[3], Literal[3]]:
     """Convert a quaternion to a 3x3 rotation matrix."""
     ...
 
 @over
-def transformation(p: Vector[Literal[3], Float], q: Quaternion[Float], dtype: Float) -> Transformation[Float]:
+def transformation(p: Vector[Float, Literal[3]], q: Quaternion[Float], dtype: Float) -> Transformation[Float]:
     """Construct a transformation.
 
     Use translation ``p`` and rotation ``q``.
@@ -2518,7 +2544,7 @@ def transform_identity(dtype: Float) -> transformf:
     """Construct an identity transform with zero translation and identity rotation."""
     ...
 
-def transform_get_translation(xform: Transformation[Float]) -> Vector[Literal[3], Float]:
+def transform_get_translation(xform: Transformation[Float]) -> Vector[Float, Literal[3]]:
     """Extract the translational part of transform ``xform``."""
     ...
 
@@ -2526,7 +2552,7 @@ def transform_get_rotation(xform: Transformation[Float]) -> Quaternion[Float]:
     """Extract the rotational part of transform ``xform``."""
     ...
 
-def transform_set_translation(xform: Transformation[Float], p: Vector[Literal[3], Float]) -> None:
+def transform_set_translation(xform: Transformation[Float], p: Vector[Float, Literal[3]]) -> None:
     """Set the translational part of a transform ``xform``."""
     ...
 
@@ -2539,7 +2565,7 @@ def transform_multiply(a: Transformation[Float], b: Transformation[Float]) -> Tr
     ...
 
 @over
-def transform_point(xform: Transformation[Float], point: Vector[Literal[3], Float]) -> Vector[Literal[3], Float]:
+def transform_point(xform: Transformation[Float], point: Vector[Float, Literal[3]]) -> Vector[Float, Literal[3]]:
     """Apply a transform to a point.
 
     Treat the homogeneous coordinate as w=1 (translation and rotation).
@@ -2548,8 +2574,8 @@ def transform_point(xform: Transformation[Float], point: Vector[Literal[3], Floa
 
 @over
 def transform_point(
-    mat: Matrix[Literal[4], Literal[4], Float], point: Vector[Literal[3], Float]
-) -> Vector[Literal[3], Float]:
+    mat: Matrix[Float, Literal[4], Literal[4]], point: Vector[Float, Literal[3]]
+) -> Vector[Float, Literal[3]]:
     """Apply a transform to a point.
 
     Treat the homogeneous coordinate as w=1.
@@ -2563,7 +2589,7 @@ def transform_point(
     ...
 
 @over
-def transform_vector(xform: Transformation[Float], vec: Vector[Literal[3], Float]) -> Vector[Literal[3], Float]:
+def transform_vector(xform: Transformation[Float], vec: Vector[Float, Literal[3]]) -> Vector[Float, Literal[3]]:
     """Apply a transform to a vector.
 
     Treat the homogeneous coordinate as w=0 (rotation only).
@@ -2572,8 +2598,8 @@ def transform_vector(xform: Transformation[Float], vec: Vector[Literal[3], Float
 
 @over
 def transform_vector(
-    mat: Matrix[Literal[4], Literal[4], Float], vec: Vector[Literal[3], Float]
-) -> Vector[Literal[3], Float]:
+    mat: Matrix[Float, Literal[4], Literal[4]], vec: Vector[Float, Literal[3]]
+) -> Vector[Float, Literal[3]]:
     """Apply a transform to a vector.
 
     Treat the homogeneous coordinate as w=0.
@@ -2591,7 +2617,7 @@ def transform_inverse(xform: Transformation[Float]) -> Transformation[Float]:
     ...
 
 @over
-def spatial_vector(dtype: Float) -> Vector[Literal[6], Float]:
+def spatial_vector(dtype: Float) -> Vector[Float, Literal[6]]:
     """Construct a 6D screw vector.
 
     Zero-initialize the vector.
@@ -2600,8 +2626,8 @@ def spatial_vector(dtype: Float) -> Vector[Literal[6], Float]:
 
 @over
 def spatial_vector(
-    w: Vector[Literal[3], Float], v: Vector[Literal[3], Float], dtype: Float
-) -> Vector[Literal[6], Float]:
+    w: Vector[Float, Literal[3]], v: Vector[Float, Literal[3]], dtype: Float
+) -> Vector[Float, Literal[6]]:
     """Construct a 6D screw vector.
 
     Use two 3D vectors.
@@ -2611,7 +2637,7 @@ def spatial_vector(
 @over
 def spatial_vector(
     wx: Float, wy: Float, wz: Float, vx: Float, vy: Float, vz: Float, dtype: Float
-) -> Vector[Literal[6], Float]:
+) -> Vector[Float, Literal[6]]:
     """Construct a 6D screw vector.
 
     Use six scalar values.
@@ -2619,33 +2645,33 @@ def spatial_vector(
     ...
 
 def spatial_adjoint(
-    r: Matrix[Literal[3], Literal[3], Float], s: Matrix[Literal[3], Literal[3], Float]
-) -> Matrix[Literal[6], Literal[6], Float]:
+    r: Matrix[Float, Literal[3], Literal[3]], s: Matrix[Float, Literal[3], Literal[3]]
+) -> Matrix[Float, Literal[6], Literal[6]]:
     """Construct a 6x6 spatial inertial matrix from two 3x3 diagonal blocks."""
     ...
 
-def spatial_dot(a: Vector[Literal[6], Float], b: Vector[Literal[6], Float]) -> Float:
+def spatial_dot(a: Vector[Float, Literal[6]], b: Vector[Float, Literal[6]]) -> Float:
     """Compute the dot product of two 6D screw vectors."""
     ...
 
-def spatial_cross(a: Vector[Literal[6], Float], b: Vector[Literal[6], Float]) -> Vector[Literal[6], Float]:
+def spatial_cross(a: Vector[Float, Literal[6]], b: Vector[Float, Literal[6]]) -> Vector[Float, Literal[6]]:
     """Compute the cross product of two 6D screw vectors."""
     ...
 
-def spatial_cross_dual(a: Vector[Literal[6], Float], b: Vector[Literal[6], Float]) -> Vector[Literal[6], Float]:
+def spatial_cross_dual(a: Vector[Float, Literal[6]], b: Vector[Float, Literal[6]]) -> Vector[Float, Literal[6]]:
     """Compute the dual cross product of two 6D screw vectors."""
     ...
 
-def spatial_top(svec: Vector[Literal[6], Float]) -> Vector[Literal[3], Float]:
+def spatial_top(svec: Vector[Float, Literal[6]]) -> Vector[Float, Literal[3]]:
     """Extract the top (first) part of a 6D screw vector."""
     ...
 
-def spatial_bottom(svec: Vector[Literal[6], Float]) -> Vector[Literal[3], Float]:
+def spatial_bottom(svec: Vector[Float, Literal[6]]) -> Vector[Float, Literal[3]]:
     """Extract the bottom (second) part of a 6D screw vector."""
     ...
 
 def spatial_jacobian(
-    S: Array[Vector[Literal[6], Float]],
+    S: Array[Vector[Float, Literal[6]]],
     joint_parents: Array[int32],
     joint_qd_start: Array[int32],
     joint_start: int32,
@@ -2657,7 +2683,7 @@ def spatial_jacobian(
     ...
 
 def spatial_mass(
-    I_s: Array[Matrix[Literal[6], Literal[6], Float]],
+    I_s: Array[Matrix[Float, Literal[6], Literal[6]]],
     joint_start: int32,
     joint_count: int32,
     M_start: int32,
@@ -2725,6 +2751,69 @@ def tile_full(shape: tuple[int, ...], value: Any, dtype: Any, storage: str) -> T
 @over
 def tile_full(shape: int32, value: Any, dtype: Any, storage: str) -> Tile[Any, tuple[int, ...]]:
     """Allocate a tile filled with the specified value."""
+    ...
+
+@over
+def tile_from_thread(shape: tuple[int, ...], value: Any, thread_idx: int32, storage: str) -> Tile[Any, tuple[int, ...]]:
+    """Allocate a tile filled with a value from a specific thread.
+
+    This function broadcasts a value from one thread to all threads in the block,
+    then creates a tile filled with that broadcast value. This is useful for
+    efficiently sharing a computed result (e.g., from an atomic operation) with
+    all threads in a block using minimal shared memory (only 1 element).
+
+    Args:
+        shape: Shape of the output tile
+        value: Per-thread value (only the value from ``thread_idx`` is used)
+        thread_idx: Index of the thread whose value should fill the tile
+        storage: The storage location for the tile: ``"register"`` for registers
+            (default) or ``"shared"`` for shared memory.
+
+    Returns:
+        A tile filled with the value from the specified thread.
+
+    Example:
+
+        .. code-block:: python
+
+            import warp as wp
+
+            TILE_SIZE = 8
+
+            @wp.kernel
+            def compute(output: wp.array(dtype=int)):
+                i, j = wp.tid()
+
+                # Compute offset on the last thread
+                offset = 0
+                if j == wp.block_dim() - 1:
+                    offset = i * wp.block_dim()
+
+                # Broadcast the last thread's offset to all threads (uses only 1 element of shared memory)
+                offset_tile = wp.tile_from_thread(shape=TILE_SIZE, value=offset, thread_idx=wp.block_dim() - 1)
+
+                # Combine with other tiles using tile operations
+                indices = wp.tile_arange(0, TILE_SIZE, dtype=int)
+                result = offset_tile + indices
+
+                wp.tile_store(output, result, offset=(i * TILE_SIZE,))
+
+            output = wp.zeros(16, dtype=int)
+            wp.launch_tiled(compute, dim=[2], inputs=[output], block_dim=TILE_SIZE)
+
+            print(output.numpy())
+
+        .. code-block:: text
+
+            [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15]
+
+
+    """
+    ...
+
+@over
+def tile_from_thread(shape: int32, value: Any, thread_idx: int32, storage: str) -> Tile[Any, tuple[int, ...]]:
+    """Allocate a tile filled with a value from a specific thread."""
     ...
 
 @over
@@ -4461,15 +4550,49 @@ def mesh_eval_velocity(id: uint64, face: int32, bary_u: float32, bary_v: float32
     """Evaluate the velocity on the :class:`warp.Mesh` given a face index and barycentric coordinates."""
     ...
 
+@over
 def hash_grid_query(id: uint64, point: vec3f, max_dist: float32) -> HashGridQuery:
     """Construct a point query against a :class:`warp.HashGrid`.
 
-    This query can be used to iterate over all neighboring point within a fixed radius from the query point.
+    This query can be used to iterate over all neighboring points within a fixed radius from the query point.
     """
     ...
 
+@over
+def hash_grid_query(id: uint64, point: vec3h, max_dist: float16) -> HashGridQueryH:
+    """Construct a point query against a :class:`warp.HashGrid` (float16 precision).
+
+    This query can be used to iterate over all neighboring points within a fixed radius from the query point.
+    """
+    ...
+
+@over
+def hash_grid_query(id: uint64, point: vec3d, max_dist: float64) -> HashGridQueryD:
+    """Construct a point query against a :class:`warp.HashGrid` (float64 precision).
+
+    This query can be used to iterate over all neighboring points within a fixed radius from the query point.
+    """
+    ...
+
+@over
 def hash_grid_query_next(query: HashGridQuery, index: int32) -> bool:
     """Move to the next point in the hash grid query.
+
+    The index of the current neighbor is stored in ``index``, returns ``False`` if there are no more neighbors.
+    """
+    ...
+
+@over
+def hash_grid_query_next(query: HashGridQueryH, index: int32) -> bool:
+    """Move to the next point in the hash grid query (float16 precision).
+
+    The index of the current neighbor is stored in ``index``, returns ``False`` if there are no more neighbors.
+    """
+    ...
+
+@over
+def hash_grid_query_next(query: HashGridQueryD, index: int32) -> bool:
+    """Move to the next point in the hash grid query (float64 precision).
 
     The index of the current neighbor is stored in ``index``, returns ``False`` if there are no more neighbors.
     """
@@ -4677,6 +4800,10 @@ def volume_world_to_index_dir(id: uint64, xyz: vec3f) -> vec3f:
 def texture_sample(tex: Texture2D, uv: vec2f, dtype: Any) -> Any:
     """Sample the 2D texture at the given UV coordinates.
 
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
+
     Args:
         tex: The 2D texture to sample.
         uv: UV coordinates as a :class:`warp.vec2f`. Range is [0, 1] if the texture was created with
@@ -4693,6 +4820,10 @@ def texture_sample(tex: Texture2D, uv: vec2f, dtype: Any) -> Any:
 @over
 def texture_sample(tex: Texture2D, u: float32, v: float32, dtype: Any) -> Any:
     """Sample the 2D texture at the given UV coordinates.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
 
     Args:
         tex: The 2D texture to sample.
@@ -4713,6 +4844,10 @@ def texture_sample(tex: Texture2D, u: float32, v: float32, dtype: Any) -> Any:
 def texture_sample(tex: Texture3D, uvw: vec3f, dtype: Any) -> Any:
     """Sample the 3D texture at the given UVW coordinates.
 
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
+
     Args:
         tex: The 3D texture to sample.
         uvw: UVW coordinates as a :class:`warp.vec3f`. Range is [0, 1] if the texture was created with
@@ -4729,6 +4864,10 @@ def texture_sample(tex: Texture3D, uvw: vec3f, dtype: Any) -> Any:
 @over
 def texture_sample(tex: Texture3D, u: float32, v: float32, w: float32, dtype: Any) -> Any:
     """Sample the 3D texture at the given UVW coordinates.
+
+    .. admonition:: Experimental
+
+        The texture API is experimental and subject to change. See :class:`warp.Texture`.
 
     Args:
         tex: The 3D texture to sample.
@@ -6036,12 +6175,12 @@ def lerp(a: Float, b: Float, t: Float) -> Float:
     ...
 
 @over
-def lerp(a: Vector[Any, Float], b: Vector[Any, Float], t: Float) -> Vector[Any, Float]:
+def lerp(a: Vector[Float, Any], b: Vector[Float, Any], t: Float) -> Vector[Float, Any]:
     """Linearly interpolate two values ``a`` and ``b`` using factor ``t``, computed as ``a*(1-t) + b*t``."""
     ...
 
 @over
-def lerp(a: Matrix[Any, Any, Float], b: Matrix[Any, Any, Float], t: Float) -> Matrix[Any, Any, Float]:
+def lerp(a: Matrix[Float, Any, Any], b: Matrix[Float, Any, Any], t: Float) -> Matrix[Float, Any, Any]:
     """Linearly interpolate two values ``a`` and ``b`` using factor ``t``, computed as ``a*(1-t) + b*t``."""
     ...
 
@@ -6070,7 +6209,7 @@ def expect_near(a: Float, b: Float, tolerance: Float) -> None:
     ...
 
 @over
-def expect_near(a: Vector[Any, Float], b: Vector[Any, Float], tolerance: Float) -> None:
+def expect_near(a: Vector[Float, Any], b: Vector[Float, Any], tolerance: Float) -> None:
     """Print an error to stdout if ``a`` and ``b`` differ by more than ``tolerance``.
 
     Compare each vector element.
@@ -6086,7 +6225,7 @@ def expect_near(a: Quaternion[Float], b: Quaternion[Float], tolerance: Float) ->
     ...
 
 @over
-def expect_near(a: Matrix[Any, Any, Float], b: Matrix[Any, Any, Float], tolerance: Float) -> None:
+def expect_near(a: Matrix[Float, Any, Any], b: Matrix[Float, Any, Any], tolerance: Float) -> None:
     """Print an error to stdout if ``a`` and ``b`` differ by more than ``tolerance``.
 
     Compare each matrix element.
@@ -6112,7 +6251,7 @@ def add(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def add(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def add(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Add ``a`` and ``b``."""
     ...
 
@@ -6122,7 +6261,7 @@ def add(a: Quaternion[Float], b: Quaternion[Float]) -> Quaternion[Float]:
     ...
 
 @over
-def add(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def add(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Add ``a`` and ``b``."""
     ...
 
@@ -6142,12 +6281,12 @@ def sub(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def sub(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def sub(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Subtract ``b`` from ``a``."""
     ...
 
 @over
-def sub(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def sub(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Subtract ``b`` from ``a``."""
     ...
 
@@ -6172,7 +6311,7 @@ def bit_and(a: Int, b: Int) -> Int:
     ...
 
 @over
-def bit_and(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
+def bit_and(a: Vector[Int, Any], b: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute the bitwise AND of ``a`` and ``b``.
 
     Apply the operation element-wise to vectors.
@@ -6180,7 +6319,7 @@ def bit_and(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def bit_and(a: Matrix[Any, Any, Int], b: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def bit_and(a: Matrix[Int, Any, Any], b: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute the bitwise AND of ``a`` and ``b``.
 
     Apply the operation element-wise to matrices.
@@ -6201,7 +6340,7 @@ def bit_or(a: Int, b: Int) -> Int:
     ...
 
 @over
-def bit_or(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
+def bit_or(a: Vector[Int, Any], b: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute the bitwise OR of ``a`` and ``b``.
 
     Apply the operation element-wise to vectors.
@@ -6209,7 +6348,7 @@ def bit_or(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def bit_or(a: Matrix[Any, Any, Int], b: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def bit_or(a: Matrix[Int, Any, Any], b: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute the bitwise OR of ``a`` and ``b``.
 
     Apply the operation element-wise to matrices.
@@ -6230,7 +6369,7 @@ def bit_xor(a: Int, b: Int) -> Int:
     ...
 
 @over
-def bit_xor(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
+def bit_xor(a: Vector[Int, Any], b: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute the bitwise XOR of ``a`` and ``b``.
 
     Apply the operation element-wise to vectors.
@@ -6238,7 +6377,7 @@ def bit_xor(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def bit_xor(a: Matrix[Any, Any, Int], b: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def bit_xor(a: Matrix[Int, Any, Any], b: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute the bitwise XOR of ``a`` and ``b``.
 
     Apply the operation element-wise to matrices.
@@ -6259,7 +6398,7 @@ def lshift(a: Int, b: Int) -> Int:
     ...
 
 @over
-def lshift(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
+def lshift(a: Vector[Int, Any], b: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute ``a`` left-shifted by ``b`` bits.
 
     Apply the operation element-wise to vectors.
@@ -6267,7 +6406,7 @@ def lshift(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def lshift(a: Matrix[Any, Any, Int], b: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def lshift(a: Matrix[Int, Any, Any], b: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute ``a`` left-shifted by ``b`` bits.
 
     Apply the operation element-wise to matrices.
@@ -6280,7 +6419,7 @@ def rshift(a: Int, b: Int) -> Int:
     ...
 
 @over
-def rshift(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
+def rshift(a: Vector[Int, Any], b: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute ``a`` right-shifted by ``b`` bits.
 
     Apply the operation element-wise to vectors.
@@ -6288,7 +6427,7 @@ def rshift(a: Vector[Any, Int], b: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def rshift(a: Matrix[Any, Any, Int], b: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def rshift(a: Matrix[Int, Any, Any], b: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute ``a`` right-shifted by ``b`` bits.
 
     Apply the operation element-wise to matrices.
@@ -6301,7 +6440,7 @@ def invert(a: Int) -> Int:
     ...
 
 @over
-def invert(a: Vector[Any, Int]) -> Vector[Any, Int]:
+def invert(a: Vector[Int, Any]) -> Vector[Int, Any]:
     """Compute the bitwise complement of ``a``.
 
     Apply the operation element-wise to vectors.
@@ -6309,7 +6448,7 @@ def invert(a: Vector[Any, Int]) -> Vector[Any, Int]:
     ...
 
 @over
-def invert(a: Matrix[Any, Any, Int]) -> Matrix[Any, Any, Int]:
+def invert(a: Matrix[Int, Any, Any]) -> Matrix[Int, Any, Any]:
     """Compute the bitwise complement of ``a``.
 
     Apply the operation element-wise to matrices.
@@ -6322,7 +6461,7 @@ def mul(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def mul(a: Vector[Any, Scalar], b: Scalar) -> Vector[Any, Scalar]:
+def mul(a: Vector[Scalar, Any], b: Scalar) -> Vector[Scalar, Any]:
     """Multiply two values.
 
     Scale a vector by a scalar.
@@ -6330,7 +6469,7 @@ def mul(a: Vector[Any, Scalar], b: Scalar) -> Vector[Any, Scalar]:
     ...
 
 @over
-def mul(a: Scalar, b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def mul(a: Scalar, b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Multiply two values.
 
     Scale a vector by a scalar.
@@ -6362,7 +6501,7 @@ def mul(a: Quaternion[Float], b: Quaternion[Float]) -> Quaternion[Float]:
     ...
 
 @over
-def mul(a: Scalar, b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def mul(a: Scalar, b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Multiply two values.
 
     Scale a matrix by a scalar.
@@ -6370,7 +6509,7 @@ def mul(a: Scalar, b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
     ...
 
 @over
-def mul(a: Matrix[Any, Any, Scalar], b: Scalar) -> Matrix[Any, Any, Scalar]:
+def mul(a: Matrix[Scalar, Any, Any], b: Scalar) -> Matrix[Scalar, Any, Any]:
     """Multiply two values.
 
     Scale a matrix by a scalar.
@@ -6378,7 +6517,7 @@ def mul(a: Matrix[Any, Any, Scalar], b: Scalar) -> Matrix[Any, Any, Scalar]:
     ...
 
 @over
-def mul(a: Matrix[Any, Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def mul(a: Matrix[Scalar, Any, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Multiply two values.
 
     Compute a matrix-vector product.
@@ -6386,7 +6525,7 @@ def mul(a: Matrix[Any, Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scal
     ...
 
 @over
-def mul(a: Vector[Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Vector[Any, Scalar]:
+def mul(a: Vector[Scalar, Any], b: Matrix[Scalar, Any, Any]) -> Vector[Scalar, Any]:
     """Multiply two values.
 
     Compute a row-vector-by-matrix product.
@@ -6394,7 +6533,7 @@ def mul(a: Vector[Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Vector[Any, Scal
     ...
 
 @over
-def mul(a: Matrix[Any, Any, Scalar], b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def mul(a: Matrix[Scalar, Any, Any], b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Multiply two values.
 
     Compute a matrix-matrix product.
@@ -6430,24 +6569,29 @@ def mul(a: Transformation[Float], b: Scalar) -> Transformation[Float]:
     ...
 
 @over
-def mul(x: Tile[Any, tuple[int, ...]], y: Any) -> Tile[Any, tuple[int, ...]]:
+def mul(a: Tile[Any, tuple[int, ...]], b: Tile[Any, tuple[int, ...]]) -> Tile[Any, tuple[int, ...]]:
+    """Element-wise multiplication of tiles."""
+    ...
+
+@over
+def mul(a: Tile[Any, tuple[int, ...]], b: Any) -> Tile[Any, tuple[int, ...]]:
     """Multiply two values.
 
-    Scale each element of a tile by a scalar.
+    Multiply each element of a tile by a constant (scalar, vector, or matrix).
 
-    If the tile's element type is not scalar, the constant must be a scalar type and vice versa.
-    Underlying scalar types must match. Result dtype follows standard scalar multiplication rules.
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.
     """
     ...
 
 @over
-def mul(x: Any, y: Tile[Any, tuple[int, ...]]) -> Tile[Any, tuple[int, ...]]:
+def mul(a: Any, b: Tile[Any, tuple[int, ...]]) -> Tile[Any, tuple[int, ...]]:
     """Multiply two values.
 
-    Scale each element of a tile by a scalar.
+    Multiply each element of a tile by a constant (scalar, vector, or matrix).
 
-    If the tile's element type is not scalar, the constant must be a scalar type and vice versa.
-    Underlying scalar types must match. Result dtype follows standard scalar multiplication rules.
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.
     """
     ...
 
@@ -6457,7 +6601,7 @@ def mod(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def mod(a: Vector[Any, Scalar], b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def mod(a: Vector[Scalar, Any], b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Modulo operation using truncated division."""
     ...
 
@@ -6467,7 +6611,7 @@ def div(a: Scalar, b: Scalar) -> Scalar:
     ...
 
 @over
-def div(a: Vector[Any, Scalar], b: Scalar) -> Vector[Any, Scalar]:
+def div(a: Vector[Scalar, Any], b: Scalar) -> Vector[Scalar, Any]:
     """Divide two values.
 
     Divide a vector by a scalar.
@@ -6475,7 +6619,7 @@ def div(a: Vector[Any, Scalar], b: Scalar) -> Vector[Any, Scalar]:
     ...
 
 @over
-def div(a: Scalar, b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def div(a: Scalar, b: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Divide two values.
 
     Divide a scalar by each element of a vector.
@@ -6483,7 +6627,7 @@ def div(a: Scalar, b: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
     ...
 
 @over
-def div(a: Matrix[Any, Any, Scalar], b: Scalar) -> Matrix[Any, Any, Scalar]:
+def div(a: Matrix[Scalar, Any, Any], b: Scalar) -> Matrix[Scalar, Any, Any]:
     """Divide two values.
 
     Divide a matrix by a scalar.
@@ -6491,7 +6635,7 @@ def div(a: Matrix[Any, Any, Scalar], b: Scalar) -> Matrix[Any, Any, Scalar]:
     ...
 
 @over
-def div(a: Scalar, b: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def div(a: Scalar, b: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Divide two values.
 
     Divide a scalar by each element of a matrix.
@@ -6518,6 +6662,93 @@ def div(a: Scalar, b: Quaternion[Float]) -> Quaternion[Float]:
     """
     ...
 
+@over
+def div(a: Tile[Any, tuple[int, ...]], b: Tile[Any, tuple[int, ...]]) -> Tile[Any, tuple[int, ...]]:
+    """Element-wise division of tiles."""
+    ...
+
+@over
+def div(a: Tile[Any, tuple[int, ...]], b: Any) -> Tile[Any, tuple[int, ...]]:
+    """Divide tile elements by a constant.
+
+    Divide each element of a tile by a constant (scalar, vector, or matrix).
+
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.
+    """
+    ...
+
+@over
+def div(a: Any, b: Tile[Any, tuple[int, ...]]) -> Tile[Any, tuple[int, ...]]:
+    """Divide a constant by tile elements.
+
+    Divide a constant (scalar, vector, or matrix) by each element of a tile.
+
+    At least one of the tile's element type or the constant type must be scalar.
+    Underlying scalar types must match.
+    """
+    ...
+
+@over
+def div_approx(a: Float, b: Float) -> Float:
+    """Divide two values using approximate GPU intrinsics.
+
+    Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Vector[Float, Any], b: Float) -> Vector[Float, Any]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a vector by a scalar. Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Float, b: Vector[Float, Any]) -> Vector[Float, Any]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by each element of a vector. Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Matrix[Float, Any, Any], b: Float) -> Matrix[Float, Any, Any]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a matrix by a scalar. Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Float, b: Matrix[Float, Any, Any]) -> Matrix[Float, Any, Any]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by each element of a matrix. Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Quaternion[Float], b: Float) -> Quaternion[Float]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a quaternion by a scalar.
+
+    The result is unnormalized. Falls back to exact division on CPU.
+    """
+    ...
+
+@over
+def div_approx(a: Float, b: Quaternion[Float]) -> Quaternion[Float]:
+    """Divide two values using approximate GPU intrinsics.
+
+    Divide a scalar by a quaternion.
+
+    The result is unnormalized. Falls back to exact division on CPU.
+    """
+    ...
+
 def floordiv(a: Scalar, b: Scalar) -> Scalar:
     """Divide two scalars using floor division."""
     ...
@@ -6528,7 +6759,7 @@ def pos(x: Scalar) -> Scalar:
     ...
 
 @over
-def pos(x: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def pos(x: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Pass ``x`` unchanged."""
     ...
 
@@ -6538,7 +6769,7 @@ def pos(x: Quaternion[Float]) -> Quaternion[Float]:
     ...
 
 @over
-def pos(x: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def pos(x: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Pass ``x`` unchanged."""
     ...
 
@@ -6548,7 +6779,7 @@ def neg(x: Scalar) -> Scalar:
     ...
 
 @over
-def neg(x: Vector[Any, Scalar]) -> Vector[Any, Scalar]:
+def neg(x: Vector[Scalar, Any]) -> Vector[Scalar, Any]:
     """Negate ``x``."""
     ...
 
@@ -6558,7 +6789,7 @@ def neg(x: Quaternion[Float]) -> Quaternion[Float]:
     ...
 
 @over
-def neg(x: Matrix[Any, Any, Scalar]) -> Matrix[Any, Any, Scalar]:
+def neg(x: Matrix[Scalar, Any, Any]) -> Matrix[Scalar, Any, Any]:
     """Negate ``x``."""
     ...
 
@@ -6719,7 +6950,7 @@ def tile_matmul(
     """
     ...
 
-def tile_fft(inout: Tile[Vector[Literal[2], Float], tuple[int, int]]) -> None:
+def tile_fft(inout: Tile[Vector[Float, Literal[2]], tuple[int, int]]) -> None:
     """Compute the forward FFT along the second dimension of a 2D tile of data.
 
     This function cooperatively computes the forward FFT on a tile of data inplace, treating each row individually.
@@ -6736,7 +6967,7 @@ def tile_fft(inout: Tile[Vector[Literal[2], Float], tuple[int, int]]) -> None:
     """
     ...
 
-def tile_ifft(inout: Tile[Vector[Literal[2], Float], tuple[int, int]]) -> None:
+def tile_ifft(inout: Tile[Vector[Float, Literal[2]], tuple[int, int]]) -> None:
     """Compute the inverse FFT along the second dimension of a 2D tile of data.
 
     This function cooperatively computes the inverse FFT on a tile of data inplace, treating each row individually.
@@ -6906,7 +7137,7 @@ def tile_upper_solve_inplace(U: Tile[Float, tuple[int, int]], z: Tile[Float, tup
     ...
 
 @over
-def len(a: Vector[Any, Scalar]) -> int:
+def len(a: Vector[Scalar, Any]) -> int:
     """Query the number of elements in a vector."""
     ...
 
@@ -6916,7 +7147,7 @@ def len(a: Quaternion[Float]) -> int:
     ...
 
 @over
-def len(a: Matrix[Any, Any, Scalar]) -> int:
+def len(a: Matrix[Scalar, Any, Any]) -> int:
     """Query the number of rows in a matrix."""
     ...
 

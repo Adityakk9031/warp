@@ -930,6 +930,7 @@ WP_API void* wp_cuda_device_get_primary_context(int ordinal) { return NULL; }
 WP_API const char* wp_cuda_device_get_name(int ordinal) { return NULL; }
 WP_API int wp_cuda_device_get_arch(int ordinal) { return 0; }
 WP_API int wp_cuda_device_get_sm_count(int ordinal) { return 0; }
+WP_API int wp_cuda_device_get_max_shared_memory(int ordinal) { return 0; }
 WP_API void wp_cuda_device_get_uuid(int ordinal, char uuid[16]) { }
 WP_API int wp_cuda_device_get_pci_domain_id(int ordinal) { return -1; }
 WP_API int wp_cuda_device_get_pci_bus_id(int ordinal) { return -1; }
@@ -1043,6 +1044,7 @@ WP_API size_t wp_cuda_compile_program(
     const char* cuda_src,
     const char* program_name,
     int arch,
+    const char* arch_suffix,
     const char* include_dir,
     int num_cuda_include_dirs,
     const char** cuda_include_dirs,
@@ -1097,6 +1099,63 @@ WP_API void wp_cuda_graphics_unmap(void* context, void* resource) { }
 WP_API void wp_cuda_graphics_device_ptr_and_size(void* context, void* resource, uint64_t* ptr, size_t* size) { }
 WP_API void* wp_cuda_graphics_register_gl_buffer(void* context, uint32_t gl_buffer, unsigned int flags) { return NULL; }
 WP_API void wp_cuda_graphics_unregister_resource(void* context, void* resource) { }
+WP_API bool wp_texture2d_copy_from_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_array_handle,
+    uint64_t src_ptr,
+    size_t src_pitch,
+    size_t width_bytes,
+    size_t height
+)
+{
+    return false;
+}
+WP_API bool wp_texture2d_copy_to_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_ptr,
+    size_t dst_pitch,
+    uint64_t src_array_handle,
+    size_t width_bytes,
+    size_t height
+)
+{
+    return false;
+}
+WP_API bool wp_texture3d_copy_from_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_array_handle,
+    uint64_t src_ptr,
+    size_t src_pitch,
+    size_t src_height,
+    size_t width_bytes,
+    size_t height,
+    size_t depth
+)
+{
+    return false;
+}
+WP_API bool wp_texture3d_copy_to_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_ptr,
+    size_t dst_pitch,
+    size_t dst_height,
+    uint64_t src_array_handle,
+    size_t width_bytes,
+    size_t height,
+    size_t depth
+)
+{
+    return false;
+}
+WP_API bool wp_texture_array_create_surface_device(void* context, uint64_t array_handle, uint64_t* surface_handle_out)
+{
+    return false;
+}
+WP_API void wp_texture_array_destroy_surface_device(void* context, uint64_t surface_handle) { }
 
 WP_API void wp_cuda_timing_begin(int flags) { }
 WP_API int wp_cuda_timing_get_result_count() { return 0; }

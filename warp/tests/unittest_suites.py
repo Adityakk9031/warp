@@ -98,6 +98,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
     Intended to be modified to create additional test suites
     """
     from warp.tests.cuda.test_async import TestAsync
+    from warp.tests.cuda.test_cuda_arch_suffix import TestCudaArchSuffix
     from warp.tests.cuda.test_mempool import TestMempool
     from warp.tests.cuda.test_multigpu import TestMultiGPU
     from warp.tests.cuda.test_peer import TestPeer
@@ -191,6 +192,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
     from warp.tests.test_special_values import TestSpecialValues
     from warp.tests.test_static import TestStatic
     from warp.tests.test_struct import TestStruct
+    from warp.tests.test_subscript_types import TestSubscriptTypes
     from warp.tests.test_tape import TestTape
     from warp.tests.test_transient_module import TestTransientModule
     from warp.tests.test_triangle_closest_point import TestTriangleClosestPoint
@@ -209,6 +211,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
     from warp.tests.tile.test_tile_load import TestTileLoad
     from warp.tests.tile.test_tile_mathdx import TestTileMathDx
     from warp.tests.tile.test_tile_matmul import TestTileMatmul
+    from warp.tests.tile.test_tile_matmul_no_mathdx import TestTileMatmulNoMathdx
     from warp.tests.tile.test_tile_reduce import TestTileReduce
     from warp.tests.tile.test_tile_shared_memory import TestTileSharedMemory
     from warp.tests.tile.test_tile_sort import TestTileSort
@@ -234,6 +237,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
         TestContext,
         TestCopy,
         TestCTypes,
+        TestCudaArchSuffix,
         TestDense,
         TestDevices,
         TestDiagnostics,
@@ -305,6 +309,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
         TestStatic,
         TestStreams,
         TestStruct,
+        TestSubscriptTypes,
         TestTape,
         TestTexture,
         TestTile,
@@ -313,6 +318,7 @@ def default_suite(test_loader: unittest.TestLoader = unittest.defaultTestLoader)
         TestTileLoad,
         TestTileMathDx,
         TestTileMatmul,
+        TestTileMatmulNoMathdx,
         TestTileReduce,
         TestTileSharedMemory,
         TestTileSort,

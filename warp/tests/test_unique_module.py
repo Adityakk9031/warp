@@ -31,6 +31,35 @@ import warp as wp
 from warp.tests.unittest_utils import *
 
 
+@wp.struct
+class _UniqueWriterAData:
+    out: wp.array(dtype=int)
+
+
+@wp.struct
+class _UniqueWriterBData:
+    out: wp.array(dtype=int)
+
+
+@wp.func
+def _unique_writer_a(value: int, writer_data: _UniqueWriterAData, output_index: int):
+    writer_data.out[output_index] = value + 1
+
+
+@wp.func
+def _unique_writer_b(value: int, writer_data: _UniqueWriterBData, output_index: int):
+    writer_data.out[output_index] = value + 2
+
+
+def _make_unique_writer_kernel(writer_func: Any):
+    @wp.kernel(module="unique")
+    def _unique_writer_kernel(values: wp.array(dtype=int), writer_data: Any):
+        tid = wp.tid()
+        writer_func(values[tid], writer_data, tid)
+
+    return _unique_writer_kernel
+
+
 def test_unique_module_kernel_object_reuse(test, device):
     """Test that identical unique kernel definitions return the same kernel object.
 
@@ -73,8 +102,8 @@ class TestUniqueModule(unittest.TestCase):
         """Test that generic unique kernels reuse the same kernel object across redefinitions.
 
         When a generic kernel with module="unique" is defined multiple times in a loop,
-        each redefinition should return the same kernel object (the registry containing
-        all overloads), ensuring consistent behavior.
+        each redefinition should return the same Kernel object (which holds all
+        type-specialized overloads), ensuring consistent behavior.
         """
         kernel_objects = []
         module_objects = []
@@ -257,6 +286,100 @@ def test_unique_module_deferred_static_expressions(test, device):
     test.assertIs(kernel1_dup, kernel1, "Identical values should reuse the same kernel object")
 
 
+def test_unique_module_generic_closure_disambiguation(test, device):
+    """Different closure-bound funcs should not collide for generic unique kernels.
+
+    This covers the generic/no-overload declaration-time path where module naming
+    must incorporate closure-bound function identity.
+    """
+    kernel_a = _make_unique_writer_kernel(_unique_writer_a)
+    kernel_b = _make_unique_writer_kernel(_unique_writer_b)
+
+    test.assertIsNot(kernel_a, kernel_b, "Different closure-bound writer funcs must create different kernels")
+    test.assertNotEqual(
+        kernel_a.module.name,
+        kernel_b.module.name,
+        "Different closure-bound writer funcs must create different unique module names",
+    )
+
+    with wp.ScopedDevice(device):
+        values = wp.array([1, 2, 3], dtype=int)
+
+        writer_a_data = _UniqueWriterAData()
+        writer_a_data.out = wp.zeros(3, dtype=int)
+        wp.launch(kernel_a, dim=3, inputs=[values, writer_a_data])
+        assert_np_equal(writer_a_data.out.numpy(), np.array([2, 3, 4]))
+
+        writer_b_data = _UniqueWriterBData()
+        writer_b_data.out = wp.zeros(3, dtype=int)
+        wp.launch(kernel_b, dim=3, inputs=[values, writer_b_data])
+        assert_np_equal(writer_b_data.out.numpy(), np.array([3, 4, 5]))
+
+
+def test_unique_module_generic_closure_reuse(test, device):
+    """The same closure-bound func should still be stable and reusable."""
+    first_kernel = _make_unique_writer_kernel(_unique_writer_a)
+    second_kernel = _make_unique_writer_kernel(_unique_writer_a)
+
+    test.assertIs(first_kernel, second_kernel, "Same closure-bound writer func should reuse kernel object")
+    test.assertIs(first_kernel.module, second_kernel.module, "Same closure-bound writer func should reuse module")
+
+    with wp.ScopedDevice(device):
+        values = wp.array([4, 5, 6], dtype=int)
+        writer_data = _UniqueWriterAData()
+        writer_data.out = wp.zeros(3, dtype=int)
+        wp.launch(second_kernel, dim=3, inputs=[values, writer_data])
+        assert_np_equal(writer_data.out.numpy(), np.array([5, 6, 7]))
+
+
+def test_unique_module_nongeneric_closure_disambiguation(test, device):
+    """Non-generic closure kernels with different captured functions must get different modules.
+
+    This tests the ModuleHasher path for closure disambiguation independently
+    of the generic-kernel salt path (which only applies to generic kernels that
+    have no instantiated overloads at declaration time).
+    """
+
+    @wp.func
+    def _add_ten(x: int) -> int:
+        return x + 10
+
+    @wp.func
+    def _add_twenty(x: int) -> int:
+        return x + 20
+
+    def _make_nongeneric_closure_kernel(helper_func):
+        @wp.kernel(module="unique")
+        def _nongeneric_closure_kernel(inp: wp.array(dtype=int), out: wp.array(dtype=int)):
+            tid = wp.tid()
+            out[tid] = helper_func(inp[tid])
+
+        return _nongeneric_closure_kernel
+
+    kernel_ten = _make_nongeneric_closure_kernel(_add_ten)
+    kernel_twenty = _make_nongeneric_closure_kernel(_add_twenty)
+
+    # Different closure bindings must produce different modules
+    test.assertIsNot(kernel_ten, kernel_twenty, "Different closure funcs must create different kernels")
+    test.assertNotEqual(
+        kernel_ten.module.name,
+        kernel_twenty.module.name,
+        "Different closure funcs must create different module names",
+    )
+
+    # Verify correct results
+    with wp.ScopedDevice(device):
+        inp = wp.array([1, 2, 3], dtype=int)
+
+        out_ten = wp.zeros(3, dtype=int)
+        wp.launch(kernel_ten, dim=3, inputs=[inp, out_ten])
+        assert_np_equal(out_ten.numpy(), np.array([11, 12, 13]))
+
+        out_twenty = wp.zeros(3, dtype=int)
+        wp.launch(kernel_twenty, dim=3, inputs=[inp, out_twenty])
+        assert_np_equal(out_twenty.numpy(), np.array([21, 22, 23]))
+
+
 devices = get_test_devices()
 
 add_function_test(
@@ -266,6 +389,24 @@ add_function_test(
     TestUniqueModule,
     "test_unique_module_deferred_static_expressions",
     test_unique_module_deferred_static_expressions,
+    devices=devices,
+)
+add_function_test(
+    TestUniqueModule,
+    "test_unique_module_generic_closure_disambiguation",
+    test_unique_module_generic_closure_disambiguation,
+    devices=devices,
+)
+add_function_test(
+    TestUniqueModule,
+    "test_unique_module_generic_closure_reuse",
+    test_unique_module_generic_closure_reuse,
+    devices=devices,
+)
+add_function_test(
+    TestUniqueModule,
+    "test_unique_module_nongeneric_closure_disambiguation",
+    test_unique_module_nongeneric_closure_disambiguation,
     devices=devices,
 )
 

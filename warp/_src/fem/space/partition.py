@@ -20,6 +20,7 @@ from warp._src.fem import cache
 from warp._src.fem.geometry import GeometryPartition, WholeGeometryPartition
 from warp._src.fem.types import NULL_ELEMENT_INDEX, NULL_NODE_INDEX
 from warp._src.fem.utils import compress_node_indices
+from warp._src.utils import warn
 
 from .function_space import FunctionSpace
 from .topology import SpaceTopology
@@ -364,6 +365,8 @@ class NodePartition(SpacePartition):
 
         # Compute global to local indices
         if self._space_to_partition is None or self._space_to_partition.shape != node_indices.shape:
+            if self._space_to_partition is not None:
+                self._space_to_partition.release()
             self._space_to_partition = cache.borrow_temporary_like(node_indices, temporary_store)
 
         wp.launch(
@@ -378,6 +381,8 @@ class NodePartition(SpacePartition):
 
         # Copy to shrunk-to-fit array
         if self._node_indices is None or self._node_indices.shape[0] != self.node_count():
+            if self._node_indices is not None:
+                self._node_indices.release()
             self._node_indices = cache.borrow_temporary(
                 temporary_store, shape=(self.node_count(),), dtype=int, device=device
             )
@@ -437,6 +442,13 @@ def make_space_partition(
     Returns:
         the resulting space partition
     """
+
+    if space is not None:
+        warn(
+            "The `space` argument of `make_space_partition` is deprecated and will be removed in 1.14. "
+            "Please use `space_topology` instead.",
+            DeprecationWarning,
+        )
 
     if space_topology is None:
         space_topology = space.topology

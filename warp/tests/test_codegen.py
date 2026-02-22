@@ -816,11 +816,11 @@ def test_multiple_return_values(test, device):
 
     axis, angle = wp.quat_to_axis_angle(q)
 
-    test.assertAlmostEqual(axis[0], expected_axis[0], places=3)
-    test.assertAlmostEqual(axis[1], expected_axis[1], places=3)
-    test.assertAlmostEqual(axis[2], expected_axis[2], places=3)
+    test.assertAlmostEqual(float(axis[0]), float(expected_axis[0]), places=3)
+    test.assertAlmostEqual(float(axis[1]), float(expected_axis[1]), places=3)
+    test.assertAlmostEqual(float(axis[2]), float(expected_axis[2]), places=3)
 
-    test.assertAlmostEqual(angle, expected_angle, places=3)
+    test.assertAlmostEqual(float(angle), expected_angle, places=3)
 
     wp.launch(
         test_multiple_return_values_quat_to_axis_angle_kernel,
@@ -931,6 +931,46 @@ def test_reference_params(test, device):
         device=device,
     )
     wp.synchronize_device(device)
+
+
+@wp.func
+def side_effect_add(counter: wp.array(dtype=int), a: float, b: float) -> float:
+    """Add two values and increment counter to track call count."""
+    wp.atomic_add(counter, 0, 1)
+    return a + b
+
+
+@wp.kernel
+def test_augassign_no_double_eval_kernel(
+    counter: wp.array(dtype=int),
+    result: wp.array(dtype=float),
+):
+    total = float(0.0)
+    # The RHS should be evaluated exactly once per augmented assignment.
+    # Before the fix, the codegen would evaluate the RHS twice for
+    # augmented assignments on simple name targets (x += expr).
+    total += side_effect_add(counter, 1.0, 2.0)
+    total += side_effect_add(counter, 3.0, 4.0)
+    total *= side_effect_add(counter, 1.0, 1.0)
+    total -= side_effect_add(counter, 0.0, 0.0)
+    result[0] = total
+
+
+def test_augassign_no_double_eval(test, device):
+    counter = wp.zeros(1, dtype=int, device=device)
+    result = wp.zeros(1, dtype=float, device=device)
+
+    wp.launch(
+        test_augassign_no_double_eval_kernel,
+        dim=1,
+        inputs=[counter, result],
+        device=device,
+    )
+
+    # 4 augmented assignments (+=, +=, *=, -=), each calling side_effect_add once = 4 calls
+    test.assertEqual(counter.numpy()[0], 4, "RHS of augmented assignment was evaluated more than once")
+    # (0 + 3) + 7 = 10, 10 * 2 = 20, 20 - 0 = 20
+    test.assertAlmostEqual(result.numpy()[0], 20.0)
 
 
 class TestCodeGen(unittest.TestCase):
@@ -1083,6 +1123,7 @@ add_function_test(
 )
 add_kernel_test(TestCodeGen, name="test_cast", kernel=test_cast, dim=1, devices=devices)
 add_function_test(TestCodeGen, "test_reference_params", test_reference_params, devices=devices)
+add_function_test(TestCodeGen, "test_augassign_no_double_eval", test_augassign_no_double_eval, devices=devices)
 
 
 if __name__ == "__main__":

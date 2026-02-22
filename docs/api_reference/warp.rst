@@ -178,12 +178,12 @@ Arrays
    :toctree: _generated
 
    array
-   fixedarray
-   tile
    array1d
    array2d
    array3d
    array4d
+   fixedarray
+   tile
    clone
    copy
    empty
@@ -221,6 +221,8 @@ Spatial Acceleration
    BvhQueryTiled
    HashGrid
    HashGridQuery
+   HashGridQueryD
+   HashGridQueryH
    Mesh
    MeshQueryAABB
    MeshQueryAABBTiled

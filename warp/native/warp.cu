@@ -1958,6 +1958,13 @@ int wp_cuda_device_get_sm_count(int ordinal)
     return 0;
 }
 
+int wp_cuda_device_get_max_shared_memory(int ordinal)
+{
+    if (ordinal >= 0 && ordinal < int(g_devices.size()))
+        return g_devices[ordinal].max_smem_bytes;
+    return 0;
+}
+
 void wp_cuda_device_get_uuid(int ordinal, char uuid[16])
 {
     memcpy(uuid, g_devices[ordinal].uuid.bytes, sizeof(char) * 16);
@@ -3745,6 +3752,7 @@ size_t wp_cuda_compile_program(
     const char* cuda_src,
     const char* program_name,
     int arch,
+    const char* arch_suffix,
     const char* include_dir,
     int num_cuda_include_dirs,
     const char** cuda_include_dirs,
@@ -3798,12 +3806,15 @@ size_t wp_cuda_compile_program(
     char arch_opt[max_arch];
     char arch_opt_lto[max_arch];
 
+    // arch_suffix is "" (no suffix), "a" (arch-specific), or "f" (family-specific)
+    const char* suffix = (arch_suffix != nullptr) ? arch_suffix : "";
+
     if (use_ptx) {
-        snprintf(arch_opt, max_arch, "--gpu-architecture=compute_%d", arch);
-        snprintf(arch_opt_lto, max_arch, "-arch=compute_%d", arch);
+        snprintf(arch_opt, max_arch, "--gpu-architecture=compute_%d%s", arch, suffix);
+        snprintf(arch_opt_lto, max_arch, "-arch=compute_%d%s", arch, suffix);
     } else {
-        snprintf(arch_opt, max_arch, "--gpu-architecture=sm_%d", arch);
-        snprintf(arch_opt_lto, max_arch, "-arch=sm_%d", arch);
+        snprintf(arch_opt, max_arch, "--gpu-architecture=sm_%d%s", arch, suffix);
+        snprintf(arch_opt_lto, max_arch, "-arch=sm_%d%s", arch, suffix);
     }
 
     std::vector<const char*> opts;
@@ -4614,6 +4625,167 @@ void* wp_cuda_graphics_register_gl_buffer(void* context, uint32_t gl_buffer, uns
     }
 
     return resource;
+}
+
+bool wp_texture2d_copy_from_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_array_handle,
+    uint64_t src_ptr,
+    size_t src_pitch,
+    size_t width_bytes,
+    size_t height
+)
+{
+    ContextGuard guard(context);
+    CUstream copy_stream = stream ? static_cast<CUstream>(stream) : get_current_stream(context);
+
+    CUDA_MEMCPY2D copy_params = {};
+    copy_params.srcXInBytes = 0;
+    copy_params.srcY = 0;
+    copy_params.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+    copy_params.srcDevice = static_cast<CUdeviceptr>(src_ptr);
+    copy_params.srcPitch = src_pitch;
+
+    copy_params.dstXInBytes = 0;
+    copy_params.dstY = 0;
+    copy_params.dstMemoryType = CU_MEMORYTYPE_ARRAY;
+    copy_params.dstArray = reinterpret_cast<CUarray>(dst_array_handle);
+
+    copy_params.WidthInBytes = width_bytes;
+    copy_params.Height = height;
+
+    return check_cu(cuMemcpy2DAsync_f(&copy_params, copy_stream));
+}
+
+bool wp_texture2d_copy_to_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_ptr,
+    size_t dst_pitch,
+    uint64_t src_array_handle,
+    size_t width_bytes,
+    size_t height
+)
+{
+    ContextGuard guard(context);
+    CUstream copy_stream = stream ? static_cast<CUstream>(stream) : get_current_stream(context);
+
+    CUDA_MEMCPY2D copy_params = {};
+    copy_params.srcXInBytes = 0;
+    copy_params.srcY = 0;
+    copy_params.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+    copy_params.srcArray = reinterpret_cast<CUarray>(src_array_handle);
+
+    copy_params.dstXInBytes = 0;
+    copy_params.dstY = 0;
+    copy_params.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+    copy_params.dstDevice = static_cast<CUdeviceptr>(dst_ptr);
+    copy_params.dstPitch = dst_pitch;
+
+    copy_params.WidthInBytes = width_bytes;
+    copy_params.Height = height;
+
+    return check_cu(cuMemcpy2DAsync_f(&copy_params, copy_stream));
+}
+
+bool wp_texture3d_copy_from_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_array_handle,
+    uint64_t src_ptr,
+    size_t src_pitch,
+    size_t src_height,
+    size_t width_bytes,
+    size_t height,
+    size_t depth
+)
+{
+    ContextGuard guard(context);
+    CUstream copy_stream = stream ? static_cast<CUstream>(stream) : get_current_stream(context);
+
+    CUDA_MEMCPY3D copy_params = {};
+    copy_params.srcXInBytes = 0;
+    copy_params.srcY = 0;
+    copy_params.srcZ = 0;
+    copy_params.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+    copy_params.srcDevice = static_cast<CUdeviceptr>(src_ptr);
+    copy_params.srcPitch = src_pitch;
+    copy_params.srcHeight = src_height;
+
+    copy_params.dstXInBytes = 0;
+    copy_params.dstY = 0;
+    copy_params.dstZ = 0;
+    copy_params.dstMemoryType = CU_MEMORYTYPE_ARRAY;
+    copy_params.dstArray = reinterpret_cast<CUarray>(dst_array_handle);
+
+    copy_params.WidthInBytes = width_bytes;
+    copy_params.Height = height;
+    copy_params.Depth = depth;
+
+    return check_cu(cuMemcpy3DAsync_f(&copy_params, copy_stream));
+}
+
+bool wp_texture3d_copy_to_array_device(
+    void* context,
+    void* stream,
+    uint64_t dst_ptr,
+    size_t dst_pitch,
+    size_t dst_height,
+    uint64_t src_array_handle,
+    size_t width_bytes,
+    size_t height,
+    size_t depth
+)
+{
+    ContextGuard guard(context);
+    CUstream copy_stream = stream ? static_cast<CUstream>(stream) : get_current_stream(context);
+
+    CUDA_MEMCPY3D copy_params = {};
+    copy_params.srcXInBytes = 0;
+    copy_params.srcY = 0;
+    copy_params.srcZ = 0;
+    copy_params.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+    copy_params.srcArray = reinterpret_cast<CUarray>(src_array_handle);
+
+    copy_params.dstXInBytes = 0;
+    copy_params.dstY = 0;
+    copy_params.dstZ = 0;
+    copy_params.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+    copy_params.dstDevice = static_cast<CUdeviceptr>(dst_ptr);
+    copy_params.dstPitch = dst_pitch;
+    copy_params.dstHeight = dst_height;
+
+    copy_params.WidthInBytes = width_bytes;
+    copy_params.Height = height;
+    copy_params.Depth = depth;
+
+    return check_cu(cuMemcpy3DAsync_f(&copy_params, copy_stream));
+}
+
+bool wp_texture_array_create_surface_device(void* context, uint64_t array_handle, uint64_t* surface_handle_out)
+{
+    ContextGuard guard(context);
+
+    cudaResourceDesc desc {};
+    desc.resType = cudaResourceTypeArray;
+    desc.res.array.array = reinterpret_cast<cudaArray_t>(array_handle);
+
+    cudaSurfaceObject_t surface = 0;
+    if (!check_cuda(cudaCreateSurfaceObject(&surface, &desc)))
+        return false;
+
+    *surface_handle_out = static_cast<uint64_t>(surface);
+    return true;
+}
+
+void wp_texture_array_destroy_surface_device(void* context, uint64_t surface_handle)
+{
+    if (!surface_handle)
+        return;
+
+    ContextGuard guard(context);
+    check_cuda(cudaDestroySurfaceObject(static_cast<cudaSurfaceObject_t>(surface_handle)));
 }
 
 void wp_cuda_graphics_unregister_resource(void* context, void* resource)
