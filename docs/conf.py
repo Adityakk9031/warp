@@ -137,11 +137,11 @@ templates_path = ["_templates"]
 html_theme = "nvidia_sphinx_theme"
 html_theme_options = {
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
+    "article_header_end": ["view-page-source.html"],
     "use_edit_page_button": True,
     "copyright_override": {"start": 2022},
     "pygments_light_style": "tango",
     "pygments_dark_style": "monokai",
-    "footer_links": {},
     "github_url": "https://github.com/NVIDIA/warp",
     "icon_links": [
         {
@@ -215,6 +215,15 @@ autosummary_filename_map = {
     "warp.fem.cells": "warp.fem.cells_function",
     "warp.fem.integrand": "warp.fem.integrand_decorator",
 }
+
+# Map internal builtin function paths to public names for output filenames.
+# Autosummary generates stubs under ``warp._src.lang.<func>`` because that is
+# where builtins are defined; this mapping rewrites filenames to ``warp.<func>``
+# so that published URLs use the public API path.
+for _builtin_name in wp._src.context.builtin_functions:
+    _internal = f"warp._src.lang.{_builtin_name}"
+    _public = f"warp.{_builtin_name}"
+    autosummary_filename_map.setdefault(_internal, _public)
 
 
 def normalize_docstring(doc: str) -> str:

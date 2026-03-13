@@ -30,7 +30,7 @@ from typing import Optional as _Optional
 
 _wp_module_name_ = "warp.config"
 
-version: str = "1.12.0.dev0"
+version: str = "1.13.0.dev0"
 """Warp version string"""
 
 verify_fp: bool = False
@@ -129,6 +129,9 @@ If ``None``, the path is determined in the following order:
 
 1. ``WARP_CACHE_PATH`` environment variable.
 2. System's user cache directory (via ``appdirs.user_cache_directory``).
+
+A version-specific subdirectory is automatically appended to the resolved
+base path to prevent cache collisions between different Warp versions.
 
 Note: Subdirectories prefixed with ``wp_`` will be created in this location.
 """

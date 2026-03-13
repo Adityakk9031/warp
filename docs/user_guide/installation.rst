@@ -52,7 +52,7 @@ For more information, see the community-maintained feedstock for Warp
 Installing from GitHub Releases
 -------------------------------
 
-The binaries hosted on PyPI are currently built with the CUDA 12 runtime.
+The binaries hosted on PyPI are currently built with the CUDA 12.9 runtime.
 We also provide binaries built with the CUDA 13.0 runtime on the `GitHub Releases <https://github.com/NVIDIA/warp/releases>`_ page.
 Copy the URL of the appropriate wheel file (``warp-lang-{ver}+cu13-py3-none-{platform}.whl``) and pass it to
 the ``pip install`` command, e.g.
@@ -63,11 +63,11 @@ the ``pip install`` command, e.g.
    * - Platform
      - Install Command
    * - Linux aarch64
-     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.11.1/warp_lang-1.11.1+cu13-py3-none-manylinux_2_34_aarch64.whl``
+     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.12.0/warp_lang-1.12.0+cu13-py3-none-manylinux_2_34_aarch64.whl``
    * - Linux x86-64
-     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.11.1/warp_lang-1.11.1+cu13-py3-none-manylinux_2_28_x86_64.whl``
+     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.12.0/warp_lang-1.12.0+cu13-py3-none-manylinux_2_28_x86_64.whl``
    * - Windows x86-64
-     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.11.1/warp_lang-1.11.1+cu13-py3-none-win_amd64.whl``
+     - ``pip install https://github.com/NVIDIA/warp/releases/download/v1.12.0/warp_lang-1.12.0+cu13-py3-none-win_amd64.whl``
 
 The ``--force-reinstall`` option may need to be used to overwrite a previous installation.
 
@@ -92,7 +92,7 @@ Warp checks the installed driver during initialization and will report a warning
     Warp UserWarning:
        Insufficient CUDA driver version.
        The minimum required CUDA driver version is 12.0, but the installed CUDA driver version is 11.8.
-       Visit https://github.com/NVIDIA/warp/blob/main/README.md#installing for guidance.
+       Visit https://nvidia.github.io/warp/user_guide/installation.html for guidance.
 
 This will make CUDA devices unavailable, but the CPU can still be used.
 
@@ -185,12 +185,12 @@ make use of an environment management system such as
         OSError: <...>/libstdc++.so.6: version `GLIBCXX_3.4.30' not found (required by <...>/warp/warp/bin/warp.so)
 
     This can be solved by installing a newer C++ runtime version in the runtime
-    Conda environment using ``conda install -c conda-forge libstdcxx-ng=12.1`` or
+    conda environment using ``conda install -c conda-forge libstdcxx-ng=12.1`` or
     newer.
     
     Alternatively, the build environment's C++ toolchain can be downgraded using
     ``conda install -c conda-forge libstdcxx-ng=8.5``. Or, one can ``activate`` or
-    ``deactivate`` Conda environments as needed for building vs. running Warp.
+    ``deactivate`` conda environments as needed for building vs. running Warp.
 
 Using Warp in Docker
 --------------------

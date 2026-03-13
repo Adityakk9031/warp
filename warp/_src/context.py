@@ -2636,7 +2636,7 @@ class Module:
     def _use_ptx(self, device) -> bool:
         return device.get_cuda_output_format(self.options.get("cuda_output")) == "ptx"
 
-    def get_module_identifier(self) -> str:
+    def get_module_identifier(self, block_dim: int | None = None) -> str:
         """Get an abbreviated module name to use for directories and files in the cache.
 
         Depending on the setting of the ``"strip_hash"`` option for this module,
@@ -2645,7 +2645,7 @@ class Module:
         if self.options["strip_hash"]:
             module_name_short = f"wp_{self.name}"
         else:
-            module_hash = self.get_module_hash()
+            module_hash = self.get_module_hash(block_dim)
             module_name_short = f"wp_{self.name}_{module_hash.hex()[:7]}"
 
         return module_name_short
@@ -2717,7 +2717,7 @@ class Module:
         output_name: str | None = None,
         output_arch: int | None = None,
         use_ptx: bool | None = None,
-    ) -> None:
+    ) -> bool:
         """Compile this module for a specific device.
 
         Note that this function only generates and compiles code. The resulting
@@ -2730,6 +2730,10 @@ class Module:
             output_arch: The architecture to compile the module for.
             use_ptx: Whether to compile to PTX instead of CUBIN. If ``None``,
                 auto-determined from the device and architecture.
+
+        Returns:
+            ``True`` if compilation was performed, ``False`` if a cached
+            binary already exists and compilation was skipped.
         """
         if output_arch is None:
             output_arch = self._get_compile_arch(device)  # Will remain at None if device is CPU
@@ -2749,6 +2753,24 @@ class Module:
         if output_name is None:
             output_name = self._get_compile_output_name(device, output_arch, arch_suffix, use_ptx)
 
+        # Resolve output directory early so we can check for cached binaries
+        module_name_short = self.get_module_identifier()
+
+        if output_dir is None:
+            output_dir = os.path.join(warp.config.kernel_cache_dir, f"{module_name_short}")
+        else:
+            output_dir = os.fspath(output_dir)
+
+        # Skip compilation if the binary and metadata are already cached
+        # (forced rebuild when verifying autograd array access)
+        if (
+            warp.config.cache_kernels
+            and not warp.config.verify_autograd_array_access
+            and os.path.exists(os.path.join(output_dir, output_name))
+            and os.path.exists(os.path.join(output_dir, self._get_meta_name()))
+        ):
+            return False
+
         # Some of the tile codegen, such as cuFFTDx and cuBLASDx, requires knowledge of the target arch
         builder_options = self.options | {"output_arch": output_arch}
         builder = ModuleBuilder(
@@ -2756,14 +2778,6 @@ class Module:
             builder_options,
             hasher=self.hashers.get(self.options["block_dim"], None),
         )
-
-        # create a temporary (process unique) dir for build outputs before moving to the binary dir
-        module_name_short = self.get_module_identifier()
-
-        if output_dir is None:
-            output_dir = os.path.join(warp.config.kernel_cache_dir, f"{module_name_short}")
-        else:
-            output_dir = os.fspath(output_dir)
 
         meta_path = os.path.join(output_dir, self._get_meta_name())
 
@@ -2852,6 +2866,7 @@ class Module:
                         ltoirs=builder.ltoirs.values(),
                         fatbins=builder.fatbins.values(),
                         arch_suffix=arch_suffix,
+                        pch_dir=build_dir,
                     )
 
             except Exception as e:
@@ -2887,8 +2902,8 @@ class Module:
                 # this is necessary in case different processes
                 # have different GPU architectures / devices
                 try:
-                    os.rename(output_path, binary_path)
-                except (OSError, FileExistsError):
+                    os.replace(output_path, binary_path)
+                except OSError:
                     # another process likely updated the module dir first
                     pass
 
@@ -2897,16 +2912,16 @@ class Module:
                 # this is necessary in case different processes
                 # have different GPU architectures / devices
                 try:
-                    os.rename(output_meta_path, meta_path)
-                except (OSError, FileExistsError):
+                    os.replace(output_meta_path, meta_path)
+                except OSError:
                     # another process likely updated the module dir first
                     pass
 
             try:
                 final_source_path = os.path.join(output_dir, os.path.basename(source_code_path))
                 if not os.path.exists(final_source_path) or self.options["strip_hash"]:
-                    os.rename(source_code_path, final_source_path)
-            except (OSError, FileExistsError):
+                    os.replace(source_code_path, final_source_path)
+            except OSError:
                 # another process likely updated the module dir first
                 pass
             except Exception as e:
@@ -2915,6 +2930,8 @@ class Module:
 
             # clean up build_dir used for this process regardless
             shutil.rmtree(build_dir, ignore_errors=True)
+
+        return True
 
     def load(
         self,
@@ -2951,7 +2968,7 @@ class Module:
         module_hash = self.get_module_hash(active_block_dim)
 
         # use a unique module path using the module short hash
-        module_name_short = self.get_module_identifier()
+        module_name_short = self.get_module_identifier(active_block_dim)
 
         module_load_timer_name = (
             f"Module {self.name} {module_hash.hex()[:7]} load on device '{device}'"
@@ -2982,31 +2999,20 @@ class Module:
                 else:
                     module_load_timer.extra_msg = " (cached)"
             else:
-                # we will build if binary doesn't exist yet
-                # we will rebuild if we are not caching kernels or if we are tracking array access
-
                 output_name = self._get_compile_output_name(device)
                 output_arch = self._get_compile_arch(device)
 
                 module_dir = os.path.join(warp.config.kernel_cache_dir, module_name_short)
                 meta_path = os.path.join(module_dir, self._get_meta_name())
-                # final object binary path
                 binary_path = os.path.join(module_dir, output_name)
 
-                if (
-                    not os.path.exists(binary_path)
-                    or not warp.config.cache_kernels
-                    or warp.config.verify_autograd_array_access
-                ):
-                    try:
-                        self._compile(device, module_dir, output_name, output_arch)
-                    except Exception as e:
-                        module_load_timer.extra_msg = " (error)"
-                        raise (e)
+                try:
+                    compiled = self._compile(device, module_dir, output_name, output_arch)
+                except Exception as e:
+                    module_load_timer.extra_msg = " (error)"
+                    raise e
 
-                    module_load_timer.extra_msg = " (compiled)"
-                else:
-                    module_load_timer.extra_msg = " (cached)"
+                module_load_timer.extra_msg = " (compiled)" if compiled else " (cached)"
 
             # -----------------------------------------------------------
             # Load CPU or CUDA binary
@@ -3974,6 +3980,13 @@ class Runtime:
                 "or upgrade to Apple Silicon hardware (ARM64)."
             )
 
+        if sys.version_info < (3, 10):
+            warp._src.utils.warn(
+                f"Support for Python {sys.version_info.major}.{sys.version_info.minor} is deprecated and "
+                "will be removed in Warp 1.13. Please upgrade to Python 3.10 or newer.",
+                DeprecationWarning,
+            )
+
         bin_path = os.path.join(warp_home, "bin")
 
         if os.name == "nt":
@@ -4503,6 +4516,28 @@ class Runtime:
             self.core.wp_volume_get_blind_data_info.restype = ctypes.c_char_p
 
             # Texture functions (device - CUDA)
+            self.core.wp_texture1d_create_device.argtypes = [
+                ctypes.c_void_p,  # context
+                ctypes.c_int,  # width
+                ctypes.c_int,  # num_channels
+                ctypes.c_int,  # dtype
+                ctypes.c_int,  # filter_mode
+                ctypes.c_int,  # address_mode_u
+                ctypes.c_bool,  # use_normalized_coords
+                ctypes.c_bool,  # surface_access
+                ctypes.c_void_p,  # data
+                ctypes.POINTER(ctypes.c_uint64),  # tex_handle_out
+                ctypes.POINTER(ctypes.c_uint64),  # array_handle_out
+            ]
+            self.core.wp_texture1d_create_device.restype = ctypes.c_bool
+
+            self.core.wp_texture1d_destroy_device.argtypes = [
+                ctypes.c_void_p,  # context
+                ctypes.c_uint64,  # tex_handle
+                ctypes.c_uint64,  # array_handle
+            ]
+            self.core.wp_texture1d_destroy_device.restype = None
+
             self.core.wp_texture2d_create_device.argtypes = [
                 ctypes.c_void_p,  # context
                 ctypes.c_int,  # width
@@ -4552,6 +4587,24 @@ class Runtime:
                 ctypes.c_uint64,  # array_handle
             ]
             self.core.wp_texture3d_destroy_device.restype = None
+
+            self.core.wp_texture1d_copy_from_array_device.argtypes = [
+                ctypes.c_void_p,  # context
+                ctypes.c_void_p,  # stream
+                ctypes.c_uint64,  # dst_array_handle
+                ctypes.c_uint64,  # src_ptr
+                ctypes.c_size_t,  # width_bytes
+            ]
+            self.core.wp_texture1d_copy_from_array_device.restype = ctypes.c_bool
+
+            self.core.wp_texture1d_copy_to_array_device.argtypes = [
+                ctypes.c_void_p,  # context
+                ctypes.c_void_p,  # stream
+                ctypes.c_uint64,  # dst_ptr
+                ctypes.c_uint64,  # src_array_handle
+                ctypes.c_size_t,  # width_bytes
+            ]
+            self.core.wp_texture1d_copy_to_array_device.restype = ctypes.c_bool
 
             self.core.wp_texture2d_copy_from_array_device.argtypes = [
                 ctypes.c_void_p,  # context
@@ -4615,6 +4668,23 @@ class Runtime:
             self.core.wp_texture_array_destroy_surface_device.restype = None
 
             # Texture functions (host - CPU)
+            self.core.wp_texture1d_create_host.argtypes = [
+                ctypes.c_int,  # width
+                ctypes.c_int,  # num_channels
+                ctypes.c_int,  # dtype
+                ctypes.c_int,  # filter_mode
+                ctypes.c_int,  # address_mode_u
+                ctypes.c_bool,  # use_normalized_coords
+                ctypes.c_void_p,  # data
+                ctypes.POINTER(ctypes.c_uint64),  # tex_handle_out
+            ]
+            self.core.wp_texture1d_create_host.restype = ctypes.c_bool
+
+            self.core.wp_texture1d_destroy_host.argtypes = [
+                ctypes.c_uint64,  # tex_handle
+            ]
+            self.core.wp_texture1d_destroy_host.restype = None
+
             self.core.wp_texture2d_create_host.argtypes = [
                 ctypes.c_int,  # width
                 ctypes.c_int,  # height
@@ -5391,7 +5461,7 @@ class Runtime:
                     f"The minimum required CUDA driver version is {self.min_driver_version[0]}.{self.min_driver_version[1]}, "
                     f"but the installed CUDA driver version is {self.driver_version[0]}.{self.driver_version[1]}."
                 )
-                msg.append("Visit https://github.com/NVIDIA/warp/blob/main/README.md#installing for guidance.")
+                msg.append("Visit https://nvidia.github.io/warp/user_guide/installation.html for guidance.")
                 warp._src.utils.warn("\n   ".join(msg))
 
     def get_error_string(self):
@@ -5529,7 +5599,7 @@ class Runtime:
                 raise RuntimeError(
                     f"Failed to load the shared library '{dll_path}'.\n"
                     "The execution environment's libstdc++ runtime is older than the version the Warp library was built for.\n"
-                    "See https://nvidia.github.io/warp/installation.html#conda-environments for details."
+                    "See https://nvidia.github.io/warp/user_guide/installation.html#conda-environments for details."
                 ) from e
             else:
                 raise RuntimeError(f"Failed to load the shared library '{dll_path}'") from e
@@ -6246,7 +6316,8 @@ def get_event_elapsed_time(start_event: Event, end_event: Event, synchronize: bo
         synchronize: Whether Warp should synchronize on the ``end_event``.
 
     Returns:
-        The elapsed time in milliseconds with a resolution about 0.5 ms.
+        The elapsed time in milliseconds. Note that the CUDA event timing resolution is about 0.5 microseconds,
+        so short operations may appear longer than actual.
     """
 
     # ensure the end_event is reached
@@ -6858,7 +6929,19 @@ def pack_arg(kernel, arg_type, arg_name, value, device, adjoint=False):
 
             return value.__ctype__()
 
-    # Handle Texture2D and Texture3D types (when used as type annotations)
+    # Handle Texture1D, Texture2D and Texture3D types (when used as type annotations)
+    elif arg_type is warp._src.types.Texture1D:
+        if value is None:
+            return warp._src.types.texture1d_t()
+        if isinstance(value, warp._src.types.Texture1D):
+            return value.__ctype__()
+        if isinstance(value, warp._src.types.texture1d_t):
+            return value
+        raise RuntimeError(
+            f"Error launching kernel '{kernel.key}', argument '{arg_name}' expects Texture1D "
+            f"but got {type(value).__name__}"
+        )
+
     elif arg_type is warp._src.types.Texture2D:
         if value is None:
             return warp._src.types.texture2d_t()
@@ -6910,11 +6993,19 @@ def pack_arg(kernel, arg_type, arg_name, value, device, adjoint=False):
                 raise ValueError(f"Failed to convert argument for param {arg_name} to {type_str(arg_type)}") from e
 
     elif issubclass(arg_type, ctypes.Structure):
-        # ctypes Structure types (like texture2d_t, texture3d_t)
+        # ctypes Structure types (like texture1d_t, texture2d_t, texture3d_t)
         if isinstance(value, arg_type):
             # Already the correct ctypes structure, pass directly
             return value
         # Check if value is a Texture object that needs conversion
+        if arg_type is warp._src.types.texture1d_t and isinstance(value, warp._src.types.Texture1D):
+            # check device
+            if value.device != device:
+                raise RuntimeError(
+                    f"Error launching kernel '{kernel.key}', trying to launch on device='{device}', "
+                    f"but input texture for argument '{arg_name}' is on device={value.device}."
+                )
+            return value.__ctype__()
         if arg_type is warp._src.types.texture2d_t and isinstance(value, warp._src.types.Texture2D):
             # check device
             if value.device != device:
@@ -7052,7 +7143,7 @@ class Launch:
         adjoint: bool = False,
     ):
         # retain the module executable so it doesn't get unloaded
-        self.module_exec = kernel.module.load(device)
+        self.module_exec = kernel.module.load(device, block_dim)
         if not self.module_exec:
             raise RuntimeError(f"Failed to load module {kernel.module.name} on device {device}")
 
@@ -7400,6 +7491,7 @@ def launch(
                     params_addr=None,
                     bounds=bounds,
                     device=device,
+                    block_dim=block_dim,
                     adjoint=adjoint,
                 )
                 return launch
@@ -7708,6 +7800,74 @@ def force_load(
         runtime.core.wp_cuda_context_set_current(saved_context)
 
 
+def _get_caller_module_name(stack_level: int = 1) -> str:
+    """Return the fully qualified module name of the caller.
+
+    Uses a multi-step fallback chain so that callers running under
+    ``runpy.run_module()`` (e.g. ``python -m pkg.example``) are handled
+    correctly even when the module is not yet registered in
+    ``sys.modules``.
+
+    Args:
+        stack_level: How many frames to walk up from **this** function.
+            Callers that are themselves one level above the user code
+            should pass ``2`` (one for this helper, one for the wrapper).
+
+    Returns:
+        The fully qualified name of the caller's module.
+
+    Raises:
+        RuntimeError: If the calling module cannot be determined.
+    """
+    frame = sys._getframe(stack_level)
+    try:
+        # 1. Use the frame's __name__, which is what Python assigns to
+        #    f.__module__ for functions defined in this scope.  This ensures
+        #    consistency with ``@wp.kernel`` (which reads ``f.__module__``).
+        #    In particular, under ``runpy.run_module(..., run_name="__main__")``
+        #    the frame's __name__ is "__main__" even though
+        #    ``inspect.getmodule()`` would find the pre-imported module under
+        #    its real qualified name.
+        name = frame.f_globals.get("__name__")
+        if name and name != "__main__":
+            return name
+
+        # 2. If __name__ is "__main__", this may be a regular script or a
+        #    module executed via ``python -m``.  Accept it—the @wp.kernel
+        #    decorator will also see "__main__" as f.__module__.
+        if name == "__main__":
+            return name
+
+        # 3. runpy sets __spec__ on the executed namespace even before the
+        #    module is registered in sys.modules.
+        spec = frame.f_globals.get("__spec__")
+        if spec is not None and spec.name:
+            return spec.name
+
+        # 4. Standard lookup — works when the module is in sys.modules.
+        m = inspect.getmodule(frame)
+        if m is not None:
+            return m.__name__
+
+        # 5. Match the caller's filename against sys.modules entries.
+        filename = frame.f_code.co_filename
+        if filename:
+            filename = os.path.realpath(filename)
+            for mod in list(sys.modules.values()):
+                mod_file = getattr(mod, "__file__", None)
+                if mod_file and os.path.realpath(mod_file) == filename:
+                    return mod.__name__
+
+        raise RuntimeError(
+            f"Could not determine the calling module (frame file: {frame.f_code.co_filename!r}). "
+            "This can happen when code is executed via runpy.run_module() before the module "
+            "is registered in sys.modules. Pass the module explicitly using the 'module' "
+            "parameter, e.g. wp.set_module_options({...}, module=<your_module>)."
+        )
+    finally:
+        del frame
+
+
 def load_module(
     module: Module | types.ModuleType | str | None = None,
     device: Device | str | list[Device] | list[str] | None = None,
@@ -7750,8 +7910,7 @@ def load_module(
     """
     if module is None:
         # if module not specified, use the module that called us
-        module = inspect.getmodule(inspect.stack()[1][0])
-        module_name = module.__name__
+        module_name = _get_caller_module_name(stack_level=2)
     elif isinstance(module, Module):
         module_name = module.name
     elif isinstance(module, types.ModuleType):
@@ -8040,10 +8199,18 @@ def set_module_options(options: dict[str, Any], module: Any = None):
     Options can be used to control runtime compilation and code-generation
     for the current module individually. Available options are listed below.
 
-    * **mode**: The compilation mode to use, can be "debug", or "release", defaults to the value of ``warp.config.mode``.
     * **max_unroll**: The maximum fixed-size loop to unroll, defaults to the value of ``warp.config.max_unroll``.
+    * **enable_backward**: Whether to generate the backward pass for kernels, defaults to the value of ``warp.config.enable_backward``.
     * **enable_mathdx_gemm**: Use libmathdx (cuBLASDx) for ``tile_matmul`` on GPU. If ``None`` (the default), defers to ``warp.config.enable_mathdx_gemm`` at compile time.
-    * **block_dim**: The default number of threads to assign to each block
+    * **fast_math**: Enable fast math for CUDA compilation, defaults to ``False``.
+    * **fuse_fp**: Enable floating-point contraction (FMA fusion) during compilation, defaults to ``True``.
+    * **lineinfo**: Emit line-number debug info for CUDA kernels, defaults to the value of ``warp.config.lineinfo``.
+    * **cuda_output**: CUDA compilation output format: ``"ptx"``, ``"cubin"``, or ``None`` (automatic), defaults to ``None``.
+    * **mode**: The compilation mode to use, can be ``"debug"`` or ``"release"``, defaults to the value of ``warp.config.mode``.
+    * **optimization_level**: Compiler optimization level, defaults to the value of ``warp.config.optimization_level`` when ``None``.
+    * **block_dim**: The default number of threads to assign to each block, defaults to ``256``.
+    * **compile_time_trace**: Enable compile-time tracing, defaults to the value of ``warp.config.compile_time_trace``.
+    * **strip_hash**: Omit the content hash from compiled kernel file names, defaults to ``False``.
 
     Args:
 
@@ -8051,22 +8218,22 @@ def set_module_options(options: dict[str, Any], module: Any = None):
     """
 
     if module is None:
-        m = inspect.getmodule(inspect.stack()[1][0])
+        module_name = _get_caller_module_name(stack_level=2)
     else:
-        m = module
+        module_name = module.__name__
 
-    get_module(m.__name__).options.update(options)
-    get_module(m.__name__).mark_modified()
+    get_module(module_name).options.update(options)
+    get_module(module_name).mark_modified()
 
 
 def get_module_options(module: Any = None) -> dict[str, Any]:
     """Return a list of options for the current module."""
     if module is None:
-        m = inspect.getmodule(inspect.stack()[1][0])
+        module_name = _get_caller_module_name(stack_level=2)
     else:
-        m = module
+        module_name = module.__name__
 
-    return get_module(m.__name__).options
+    return get_module(module_name).options
 
 
 def _unregister_capture(device: Device, stream: Stream, graph: Graph):

@@ -20,6 +20,9 @@ on:
     branches:
       - "pull-request/[0-9]+"
 
+env:
+  PYTHONFAULTHANDLER: "1" # Dump tracebacks on fatal signals (SIGSEGV, SIGABRT, etc.)
+
 concurrency:
   group: ${{ github.workflow }}-on-${{ github.event_name }}-from-${{ github.ref_name }}
   cancel-in-progress: true
@@ -78,6 +81,7 @@ jobs:
             --error-exitcode=1 \
             -j $(nproc) \
             --suppress=*:warp/native/nanovdb/* \
+            --suppress=*:warp/native/cuBQL/* \
             --suppress=normalCheckLevelMaxBranches \
             warp
       
@@ -95,6 +99,7 @@ jobs:
             --xml-version=2 \
             -j $(nproc) \
             --suppress=*:warp/native/nanovdb/* \
+            --suppress=*:warp/native/cuBQL/* \
             --suppress=normalCheckLevelMaxBranches \
             warp \
             2> cppcheck-report.xml

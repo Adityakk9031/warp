@@ -42,6 +42,7 @@ variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   WARP_CACHE_ROOT: "$CI_PROJECT_DIR/.cache/warp" # Used by the parallel test runner
   GIT_DEPTH: 1
+  PYTHONFAULTHANDLER: "1" # Dump tracebacks on fatal signals (SIGSEGV, SIGABRT, etc.)
   UV_LINK_MODE: copy
   UV_HTTP_TIMEOUT: 120
   UV_PYTHON_PREFERENCE: only-managed
@@ -277,6 +278,7 @@ cppcheck:
       --error-exitcode=1
       -j $(nproc)
       --suppress=*:warp/native/nanovdb/*
+      --suppress=*:warp/native/cuBQL/*
       --suppress=normalCheckLevelMaxBranches
       warp
       || cppcheck_exit_code=$?
@@ -291,6 +293,7 @@ cppcheck:
       --xml-version=2
       -j $(nproc)
       --suppress=*:warp/native/nanovdb/*
+      --suppress=*:warp/native/cuBQL/*
       --suppress=normalCheckLevelMaxBranches
       warp
       2> cppcheck-report.xml
@@ -383,6 +386,25 @@ linux-aarch64 test thor:
     - uv run --extra dev -m warp.tests --junit-report-xml rspec.xml -s autodetect --failfast
   tags:
     - gpu/thor
+
+linux-aarch64 test dgx spark:
+  needs: [linux-aarch64 build]
+  image: $UV_TRIXIE_SLIM_ARM_IMAGE
+  extends:
+    - .save_test_report_artifact
+    - .basic_test_changes_rules
+  before_script:
+    - !reference [.snippets, section-start-install-deps]
+    - df -h
+    - !reference [.snippets, move-linux-aarch64-binaries]
+    - uv sync --extra dev
+    - !reference [.snippets, section-end-install-deps]
+  script:
+    - uv run --extra dev -m warp.tests --junit-report-xml rspec.xml -s autodetect --failfast
+  tags:
+    - os/linux
+    - arch/arm
+    - gpu/GB10
 
 linux-x86_64 test:
   needs: [linux-x86_64 build]
@@ -551,6 +573,30 @@ linux-x86_64 test mujoco warp serial:
     - echo -e "\\e[0Ksection_end:`date +%s`:install_dependencies\\r\\e[0K"
   script:
     - pytest --pyargs mujoco_warp --junit-xml=rspec.xml
+
+# Optional job to test Newton (https://pypi.org/project/newton/)
+linux-x86_64 test newton:
+  stage: test
+  needs: [linux-x86_64 build]
+  image: $UV_TRIXIE_IMAGE
+  extends:
+    - .ipp_lnx_x86_64_gpu
+    - .save_test_report_artifact
+  variables:
+    UV_PYTHON: "3.12"
+  rules:
+    - when: manual
+      allow_failure: true
+  before_script:
+    - !reference [.snippets, move-linux-x86_64-binaries]
+    # Python environment
+    - uv venv
+    - uv pip install -e .
+    - uv pip install --prerelease allow "newton[dev]"
+    - source .venv/bin/activate
+    - echo -e "\\e[0Ksection_end:`date +%s`:install_dependencies\\r\\e[0K"
+  script:
+    - python -m newton.tests --junit-report-xml rspec.xml
 
 # Ensure minimum and maximum Python versions are supported
 linux-x86_64 python matrix test:

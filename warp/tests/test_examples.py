@@ -118,12 +118,16 @@ def add_example_test(
             except ImportError:
                 test.skipTest("Requires pillow")
 
-        # Find the current Warp cache
-        warp_cache_path = wp.config.kernel_cache_dir
-
         env_vars = os.environ.copy()
-        if warp_cache_path is not None:
-            env_vars["WARP_CACHE_PATH"] = warp_cache_path
+
+        # Propagate the kernel cache location to the subprocess.  We pass the
+        # original WARP_CACHE_PATH (if set) rather than the resolved
+        # kernel_cache_dir, because init_kernel_cache() appends a version
+        # subdirectory and we don't want the subprocess to double-append it.
+        # When WARP_CACHE_PATH is not set the subprocess will compute the same
+        # default cache path on its own.
+        if "WARP_CACHE_PATH" in os.environ:
+            env_vars["WARP_CACHE_PATH"] = os.environ["WARP_CACHE_PATH"]
 
         if warp.tests.unittest_utils.coverage_enabled:
             # Generate a random coverage data file name - file is deleted along with containing directory
@@ -264,6 +268,12 @@ add_example_test(
     test_options={"headless": True, "num_frames": 1000, "torch_required": True},
 )
 add_example_test(TestCoreExamples, name="core.example_wave", devices=test_devices)
+add_example_test(
+    TestCoreExamples,
+    name="core.example_fft_poisson_navier_stokes_2d",
+    devices=cuda_test_devices,
+    test_options={"headless": True, "num_steps": 100, "sim_substeps": 10},
+)
 
 
 class TestOptimExamples(unittest.TestCase):
@@ -288,6 +298,12 @@ add_example_test(
     name="optim.example_particle_repulsion",
     devices=cuda_test_devices,
     test_options={"headless": True, "num_frames": 100},
+)
+add_example_test(
+    TestOptimExamples,
+    name="optim.example_navier_stokes_perturbation",
+    devices=cuda_test_devices,
+    test_options={"headless": True, "train_iters": 5, "lead_steps": 5, "spin_up_steps": 10},
 )
 
 

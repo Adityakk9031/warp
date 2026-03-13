@@ -8,6 +8,9 @@ pull request on GitHub or email a link to your arXiv preprint (preferred) or DOI
 ## 2026
 
 - **Discovering neural cohesive zone laws from displacement fields**. *G. Barkoulis Gavris, W. Sun*. April 2026. [DOI:10.1016/j.cma.2026.118733](https://doi.org/10.1016/j.cma.2026.118733)
+- **cuRoboV2: Dynamics-Aware Motion Generation with Depth-Fused Distance Fields for High-DoF Robots**. *B. Sundaralingam, A. Murali, S. Birchfield*. March 2026. [arXiv:2603.05493](https://arxiv.org/abs/2603.05493)
+- **GaussTwin: Unified Simulation and Correction with Gaussian Splatting for Robotic Digital Twins**. *Y. Cai, P. Jansonnie, C. de Farias, O. Arenz, J. Peters*. March 2026. [arXiv:2603.05108](https://arxiv.org/abs/2603.05108)
+- **X-Loco: Towards Generalist Humanoid Locomotion Control via Synergetic Policy Distillation**. *D. Wang, X. Wang, C. Zhang, J. Shi, Y. Zhao, C. Bai, X. Li*. March 2026. [arXiv:2603.03733](https://arxiv.org/abs/2603.03733)
 - **RPL: Learning Robust Humanoid Perceptive Locomotion on Challenging Terrains**. *Y. Zhang, Y. Seo, J. Chen, Y. Yuan, K. Sreenath, P. Abbeel, C. Sferrazza, K. Liu, R. Duan, G. Shi*. February 2026. [arXiv:2602.03002](https://arxiv.org/abs/2602.03002)
 - **TTT-Parkour: Rapid Test-Time Training for Perceptive Robot Parkour**. *S. Zhu, B. Ye, J. Wang, J. Chen, Z. Zhuang, L. Mou, R. Huang, H. Zhao*. February 2026. [arXiv:2602.02331](https://arxiv.org/abs/2602.02331)
 - **mjlab: A Lightweight Framework for GPU-Accelerated Robot Learning**. *K. Zakka, Q. Liao, B. Yi, L. L. Lay, K. Sreenath, P. Abbeel*. January 2026. [arXiv:2601.22074](https://arxiv.org/abs/2601.22074)
@@ -114,3 +117,9 @@ pull request on GitHub or email a link to your arXiv preprint (preferred) or DOI
 - **NODE IK: Solving Inverse Kinematics with Neural Ordinary Differential Equations for Path Planning**. *S. Park, M. Schwartz, J. Park*. September 2022. [arXiv:2209.00498](https://arxiv.org/abs/2209.00498)
 - **Differentiable Physics Simulations with Contacts: Do They Have Correct Gradients w.r.t. Position, Velocity and Control?**. *Y. D. Zhong, J. Han, G. O. Brikis*. July 2022. [arXiv:2207.05060](https://arxiv.org/abs/2207.05060)
 - **Rethinking Optimization with Differentiable Simulation from a Global Perspective**. *R. Antonova, J. Yang, K. M. Jatavallabhula, J. Bohg*. June 2022. [arXiv:2207.00167](https://arxiv.org/abs/2207.00167)
+- **Accelerated Policy Learning with Parallel Differentiable Simulation**. *J. Xu, V. Makoviychuk, Y. Narang, F. Ramos, W. Matusik, A. Garg, M. Macklin*. April 2022. [arXiv:2204.07137](https://arxiv.org/abs/2204.07137)
+
+## 2021
+
+- **DiSECt: A Differentiable Simulation Engine for Autonomous Robotic Cutting**. *E. Heiden, M. Macklin, Y. Narang, D. Fox, A. Garg, F. Ramos*. May 2021. [arXiv:2105.12244](https://arxiv.org/abs/2105.12244)
+- **gradSim: Differentiable simulation for system identification and visuomotor control**. *K. M. Jatavallabhula, M. Macklin, F. Golemo, V. Voleti, L. Petrini, M. Weiss, B. Considine, J. Parent-Levesque, K. Xie, K. Erleben, L. Paull, F. Shkurti, D. Nowrouzezahrai, S. Fidler*. April 2021. [arXiv:2104.02646](https://arxiv.org/abs/2104.02646)
